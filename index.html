@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f8f4ee">
+<title>SANA | تجربة انتظار ألطف</title>
+<link rel="stylesheet" href="/src/styles/tokens.css">
+<link rel="stylesheet" href="/src/styles/main.css">
+<link rel="stylesheet" href="/src/styles/responsive.css">
+
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark"><img src="/assets/sana-logo.png" alt="شعار سنا"></div>
+      <div><div class="brand-name">سَنا <span style="font-weight:500;color:#9b8069">SANA</span></div><div class="brand-sub">تجربة انتظار ألطف</div></div>
+    </div>
+    <div class="top-pill"><span class="dot"></span> لا تحتاج إلى تحميل تطبيق</div>
+  </header>
+
+  <div class="layout">
+    <main class="main">
+      <section class="home-view" id="homeView">
+        <div class="hero">
+          <div><h1>أهلاً بك، خلّ الانتظار ألطف.</h1><p>تابع طلبك، واستمتع بتحديات خفيفة إلى أن يصبح جاهزاً.</p></div>
+          <div class="store-label">☕ مقهى سَنا · فرع التجربة</div>
+        </div>
+
+        <section class="card order-card" id="orderCard">
+          <div class="section-top">
+            <div class="section-title"><span class="mini-icon">◷</span> متابعة طلبك</div>
+            <span class="status" id="statusBadge">قيد التحضير</span>
+          </div>
+          <div class="lookup">
+            <div class="field"><label for="orderInput">أدخل رقم الطلب الموجود في فاتورتك</label><input id="orderInput" value="890" inputmode="numeric" placeholder="مثال: 890"></div>
+            <button class="btn" id="lookupBtn">عرض حالة الطلب</button>
+          </div>
+          <div class="hint">وصلت إلى هذه الصفحة عبر رمز QR الخاص بالمحل. أدخل رقم طلبك لمتابعته.</div>
+          <div class="order-summary">
+            <div class="order-no">رقم الطلب <strong id="orderNumber">890</strong></div>
+            <div class="eta" id="statusHint">يتم تجهيز طلبك الآن</div>
+          </div>
+          <div class="timeline" id="timeline">
+            <div class="step done"><div class="step-icon">✓</div><strong>تم الاستلام</strong><small>وصل طلبك بنجاح</small></div>
+            <div class="step current"><div class="step-icon">☕</div><strong>قيد التحضير</strong><small>يعمل الفريق على طلبك</small></div>
+            <div class="step"><div class="step-icon">✦</div><strong>جاهز للاستلام</strong><small>سنخبرك عند اكتماله</small></div>
+          </div>
+          <div class="ready-message" id="readyMessage">🎉 طلبك جاهز! توجه إلى نقطة الاستلام، نتمنى لك تجربة سعيدة.</div>
+        </section>
+
+        <div class="games-head"><div><h2>إلى أن يجهز طلبك…</h2><p>اختر تحدياً وامضِ وقتك بشيء ممتع.</p></div><span class="tiny-label">✦ وقت ممتع</span></div>
+        <section class="games-grid">
+          <article class="game-card">
+            <div class="game-art art-quiz">🧠</div><h3>تحدي المعرفة</h3><p>أسئلة عامة، سرعة بديهة ونقاط.</p><div class="game-meta"><span>فردي أو مع الأصدقاء</span><button class="text-btn" data-game="quiz">ابدأ التحدي ←</button></div>
+          </article>
+          <article class="game-card">
+            <div class="game-art art-riddle">💡</div><h3>لغز سريع</h3><p>فكّر جيداً وحاول الوصول للحل.</p><div class="game-meta"><span>دقيقة واحدة</span><button class="text-btn" data-game="riddle">جرّب الآن ←</button></div>
+          </article>
+          <article class="game-card">
+            <div class="game-art art-memory">🃏</div><h3>اختبار الذاكرة</h3><p>هل تتذكر أماكن البطاقات المتشابهة؟</p><div class="game-meta"><span>تحدٍ فردي</span><button class="text-btn" data-game="memory">العب الآن ←</button></div>
+          </article>
+        </section>
+
+        <section class="game-panel" id="gamePanel">
+          <div class="game-panel-head"><h3 id="gameTitle">تحدي المعرفة</h3><button class="close-btn" id="closeGame" aria-label="إغلاق">×</button></div>
+          <div id="gameContent"></div>
+        </section>
+
+        <section class="room-box" id="roomBox">
+          <div style="font-size:12px;font-weight:700;text-align:center">غرفة الأصدقاء التجريبية</div>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin:5px 0">شارك الرمز مع أصدقائك لينضموا إلى التحدي من هواتفهم.</p>
+          <div class="room-code" id="roomCode">S8N42</div>
+          <div class="room-actions"><button class="btn light" id="copyRoom">نسخ الرمز</button><button class="btn outline" id="simulateJoin">إضافة لاعب تجريبي</button></div>
+          <div id="roomPlayers" style="text-align:center;font-size:10px;color:#8c7a6b;margin-top:10px">أنت · بانتظار الأصدقاء</div>
+        </section>
+
+        <details class="demo-tools">
+          <summary>أدوات العرض التجريبي — محاكاة حالة الطلب</summary>
+          <div class="demo-buttons"><button data-status="preparing">الطلب قيد التحضير</button><button data-status="ready">اجعل الطلب جاهزاً</button><button data-status="reset">إعادة الحالة</button><button id="showRoom">تجربة غرفة أصدقاء</button></div>
+          <div class="hint">هذه الأدوات للعرض فقط، ولن تظهر في نظام الموظف الحقيقي.</div>
+        </details>
+      </section>
+
+      <section class="loyalty-view" id="loyaltyView">
+        <div class="hero"><div><h1>نقاطك ومكافآتك.</h1><p>أرسل بيانات فاتورتك ليتم التحقق منها وإضافة النقاط في نظام الولاء الحالي.</p></div><div class="store-label">✦ نظام الولاء</div></div>
+        <div class="loyalty-hero"><small>SANA · LOYALTY</small><h2>كل زيارة تستحق التقدير.</h2><p>أرسل رقم الفاتورة ورقم الجوال المسجل في برنامج الولاء. سيقوم فريق المحل بمراجعة الطلب قبل إضافة النقاط.</p></div>
+        <section class="card loyalty-form">
+          <h3>طلب إضافة نقاط</h3><p>أدخل البيانات كما تظهر في فاتورتك.</p>
+          <div class="form-grid">
+            <div class="field"><label for="invoiceInput">رقم الفاتورة</label><input id="invoiceInput" inputmode="numeric" placeholder="مثال: 10482"></div>
+            <div class="field"><label for="phoneInput">رقم الجوال المسجل بالولاء</label><input id="phoneInput" inputmode="tel" placeholder="05XXXXXXXX"></div>
+          </div>
+          <button class="btn" id="claimBtn">إرسال طلب إضافة النقاط</button>
+          <div class="notice" id="claimNotice"></div>
+          <div class="loyalty-note">🔒 تتم مراجعة الفاتورة قبل إضافة النقاط. لا يؤدي إرسال الطلب وحده إلى منح نقاط. يُقبل رقم الفاتورة مرة واحدة، وتُطبق سياسة المحل لمنع تكرار المطالبة خلال الفترة المحددة.</div>
+        </section>
+        <div class="loyalty-rule">
+          <div class="rule">🧾<b>فاتورة صحيحة</b><span>يجب أن تكون صادرة من المحل.</span></div>
+          <div class="rule">📱<b>رقم الولاء</b><span>استخدم الرقم المسجل في النظام.</span></div>
+          <div class="rule">✓<b>مراجعة أولاً</b><span>إضافة النقاط بعد التحقق فقط.</span></div>
+        </div>
+      </section>
+
+      <footer class="footer">سَنا SANA · نموذج واجهة تجريبي — لا تتم معالجة طلبات أو بيانات حقيقية.</footer>
+    </main>
+
+    <aside class="side">
+      <div class="side-head"><div style="font-weight:700;font-size:14px">مساحتك في سَنا</div><small>كل ما تحتاجه أثناء الانتظار</small></div>
+      <nav class="side-nav">
+        <button class="nav-btn active" id="navOrder"><span class="nav-ico">⌂</span> متابعة الطلب والألعاب</button>
+        <button class="nav-btn" id="navLoyalty"><span class="nav-ico">✦</span> نقاط الولاء</button>
+      </nav>
+      <div class="side-card"><span class="eyebrow" style="font-size:10px">SANA MOMENT</span><h3>الانتظار مو وقت ضايع.</h3><p>تحديات صغيرة، أسئلة ممتعة، وتجربة ألطف حتى يصبح طلبك جاهزاً.</p><button id="sideGameBtn">اكتشف الألعاب</button></div>
+      <div class="side-note">لا تحتاج إلى حساب للمتابعة أو اللعب. قد تتطلب بعض مزايا الولاء التحقق من بيانات الفاتورة.</div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

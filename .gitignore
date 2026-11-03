@@ -1,0 +1,13 @@
+# الاعتمادات والمخرجات (لا تُرفع إلى GitHub)
+node_modules/
+dist/
+.vite/
+
+# متغيرات البيئة — لا تُرفع أبداً
+.env
+.env.local
+.env.*.local
+
+# ملفات النظام
+.DS_Store
+Thumbs.db

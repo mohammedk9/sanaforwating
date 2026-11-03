@@ -1,0 +1,6 @@
+# ملفات SANA نصية — تثبيت LF لتفادي اختلاف نهايات الأسطر بين الأنظمة
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
