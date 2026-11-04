@@ -96,6 +96,11 @@ export interface QuestionView {
   questionCount: number;
   prompt: string;
   choices: string[];
+  /** من يملك حق الإرسال الآن (في الفرق يتناوب الأعضاء) */
+  submitterId?: string;
+  submitterName?: string;
+  /** ترتيب دور اللاعبين في السؤال الحالي (للإجابة الجماعية على هاتف واحد) */
+  turnOrder?: readonly string[];
   /** وقت بدء السؤال ووقت انتهائه (مرجع العرض والعدّاد) */
   startedAt: number;
   endsAt: number;
@@ -128,6 +133,26 @@ interface EngineState {
   soloPoints: Record<string, number>;
   teamPoints: Record<string, number>;
   teams: Team[];
+  /** ترتيب دور اللاعبين في السؤال الحالي */
+  turnOrder: string[];
+}
+
+/**
+ * يبني ترتيب الدور للاعبين في سؤال معيّن.
+ *
+ * المبدأ: تبديل عشوائي ببذرة **ثابتة** = نفس الترتيب على كل الأجهزة،
+ * فلا تختلف شاشات اللاعبين في اللعب الجماعي لاحقاً. ويتغيّر لكل سؤال
+ * حتى لا يكون اللاعب نفسه دائماً آخر من يجيب.
+ */
+function buildTurnOrder(playerIds: readonly string[], seed: number): string[] {
+  const result = [...playerIds];
+  let state = (seed * 2654435761) % 4294967296;
+  for (let i = result.length - 1; i > 0; i--) {
+    state = (state * 1103515245 + 12345) % 2147483648;
+    const j = state % (i + 1);
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
 }
 
 export class MatchEngine {
@@ -160,6 +185,7 @@ export class MatchEngine {
       soloPoints: {},
       teamPoints: {},
       teams: [],
+      turnOrder: this.players.map((player) => player.id),
     };
     for (const player of this.players) this.state.soloPoints[player.id] = 0;
   }
@@ -213,6 +239,16 @@ export class MatchEngine {
     return this;
   }
 
+  /** عدد الجولات في خطة المباراة. */
+  get roundCount(): number {
+    return this.plan.rounds.length;
+  }
+
+  /** اسم اللاعب من معرّفه (تستخدمه الواجهة في تشكيل الفرق). */
+  playerName(playerId: string): string {
+    return this.players.find((player) => player.id === playerId)?.name ?? playerId;
+  }
+
   private currentRound(): Round | undefined {
     return this.plan.rounds[this.state.roundIndex - 1];
   }
@@ -257,6 +293,14 @@ export class MatchEngine {
     this.state.questionStartedAt = now;
     this.state.answers = [];
     this.state.phaseEndsAt = now + this.config.scoring.limitMs + this.config.scoring.graceMs;
+
+    // ترتيب الدور يتغيّر لكل سؤال داخل الجولة: البذرة = الجولة والسؤال معاً.
+    // نفس البذرة على كل الأجهزة ⇒ نفس الترتيب (مهم للمزامنة لاحقاً).
+    const seed = this.state.roundIndex * 1000 + this.state.questionIndex + 1;
+    this.state.turnOrder = buildTurnOrder(
+      this.players.map((player) => player.id),
+      seed,
+    );
   }
 
   private reveal(): void {
@@ -393,6 +437,18 @@ export class MatchEngine {
     );
   }
 
+  /**
+   * عضو الفريق الذي يملك الإرسال الآن: أول فريق لم يجب بعد،
+   * والعضو بالتناوب داخل الفريق (سؤال بسؤال) — ليتشاور الجميع ويشارك.
+   */
+  private pendingTeamSubmitter(): string | undefined {
+    const nextTeam = this.state.teams.find(
+      (team) => !this.state.answers.some((answer) => answer.teamId === team.id),
+    );
+    if (!nextTeam) return undefined;
+    return nextTeam.memberIds[this.state.questionIndex % nextTeam.memberIds.length];
+  }
+
   /** عرض السؤال الحالي — بلا الإجابة الصحيحة قبل مرحلة الكشف. */
   view(): QuestionView {
     const round = this.currentRound();
@@ -405,6 +461,21 @@ export class MatchEngine {
 
     const remaining = this.state.questionStartedAt + this.config.scoring.limitMs - this.now();
 
+    // ترتيب دور اللاعبين في هذا السؤال (Pass & Play على هاتف واحد).
+    // الهدف: ألا يكون اللاعب نفسه دائماً آخر من يلعب (وهو أكثر من يتأثر
+    // بالنافذة المشتركة). الترتيب يتغيّر لكل سؤال وبثبات من نفس المدخلات
+    // حتى تتطابق شاشات اللاعبين في اللعب الجماعي لاحقاً.
+    const isTeamsRound = round?.mode === 'teams';
+    const turnOrder = isTeamsRound
+      ? this.state.teams.flatMap((team) => team.memberIds)
+      : [...this.state.turnOrder];
+
+    // في جولات الفرق: الدور لكل فريق (عضو واحد يرسل بالتناوب).
+    // في الجولات الفردية: الدور ينتقل بين اللاعبين واحداً بعد الآخر.
+    const submitterId = isTeamsRound
+      ? this.pendingTeamSubmitter()
+      : turnOrder.find((id) => !this.state.answers.some((answer) => answer.playerId === id));
+
     return {
       phase: this.state.phase,
       roundIndex: this.state.roundIndex,
@@ -414,6 +485,9 @@ export class MatchEngine {
       questionCount: questionsInRound.length,
       prompt: question?.q ?? '',
       choices: question ? [...question.a] : [],
+      submitterId,
+      submitterName: submitterId ? this.playerName(submitterId) : undefined,
+      turnOrder,
       startedAt: this.state.questionStartedAt,
       endsAt: this.state.questionStartedAt + this.config.scoring.limitMs,
       secondsLeft: Math.max(0, Math.ceil(remaining / 1000)),

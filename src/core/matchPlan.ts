@@ -10,6 +10,17 @@
 
 export type RoundMode = 'solo' | 'teams';
 
+/**
+ * أقل عدد لاعبين لتكوين فريق (لاعبان = فريق واحد على الأقل).
+ * ملاحظة: حدود اللاعبين العامة (1..8) في core/players.ts.
+ */
+export const MIN_TEAM_PLAYERS = 2;
+
+/** هل المباراة للاعب واحد فقط؟ عندها تكون كل الجولات فردية. */
+export function isOnlyPlayer(playerCount: number): boolean {
+  return playerCount < MIN_TEAM_PLAYERS;
+}
+
 /** النمط المناسب للسؤال: فردي، أو جماعي (يحتاج تشاوراً داخل الفريق) */
 export type QuestionMode = 'solo' | 'team' | 'any';
 
@@ -80,18 +91,18 @@ export function buildMatchPlan(playerCount: number, options: PlanOptions = {}): 
     index: 1,
     mode: 'solo',
     questionCount: config.soloQuestionCount,
-    label: 'منافسة فردية',
+    label: isOnlyPlayer(playerCount) ? 'تحدٍّ فردي' : 'منافسة فردية',
   });
 
   // جولة الفرق تحتاج لاعبين اثنين على الأقل لتكوين فريق واحد
-  const teamsPossible = playerCount >= config.teamSize;
+  const teamsPossible = playerCount >= Math.max(config.teamSize, MIN_TEAM_PLAYERS);
   if (teamsPossible) {
     rounds.push({
       index: rounds.length + 1,
       mode: 'teams',
       questionCount: config.teamQuestionCount,
       teamSize: config.teamSize,
-      label: 'فرق ثنائية',
+      label: config.teamSize === 2 ? 'فرق ثنائية' : `فرق ${config.teamSize}`,
     });
   }
 
