@@ -35,13 +35,19 @@ create table if not exists public.questions (
   id            uuid primary key default gen_random_uuid(),
   venue_id      uuid references public.venues(id) on delete cascade, -- null = عام
   prompt        text not null,
-  choices       text[] not null check (array_length(choices, 1) between 2 and 6),
-  correct_index integer not null check (correct_index >= 0),
+  choices       text[] not null
+                check (array_ndims(choices) = 1 and cardinality(choices) between 2 and 6),
+  correct_index integer not null,
   explanation   text,
+  category      text,
+  difficulty    text not null default 'medium' check (difficulty in ('easy', 'medium', 'hard')),
   mode          text not null default 'any' check (mode in ('solo', 'team', 'any')),
   active        boolean not null default true,
+  valid_from    timestamptz,
+  valid_until   timestamptz,
   created_at    timestamptz not null default now(),
-  check (correct_index < array_length(choices, 1))
+  check (correct_index >= 0 and correct_index < cardinality(choices)),
+  check (valid_from is null or valid_until is null or valid_until > valid_from)
 );
 
 -- ---------------------------------------------------------------- الغرف
@@ -150,11 +156,80 @@ alter table public.match_team_members enable row level security;
 alter table public.answers            enable row level security;
 alter table public.match_results      enable row level security;
 
+-- ============================================================================
+--  دوال مساعدة محمية — تكسر تكرار RLS في الغرف
+-- ============================================================================
+--  المشكلة: سياسة room_players تستعلم عن room_players نفسها ⇒ حلقة متكررة.
+--  الحل: دالة SECURITY DEFINER في مخطط private غير المكشوف عبر API،
+--  تقرأ العضوية بصلاحيات مالكها (postgres) متجاوزةً RLS مرة واحدة فقط.
+create schema if not exists private;
+
+create or replace function private.is_room_member(p_room_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.room_players as rp
+    where rp.room_id = p_room_id
+      and rp.player_id = (select auth.uid())
+  );
+$$;
+
+-- هل المستخدم عضو في غرفة هذه المباراة؟ (تستخدمها جداول المباراة)
+create or replace function private.is_match_member(p_match_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.matches as m
+    join public.room_players as rp on rp.room_id = m.room_id
+    where m.id = p_match_id
+      and rp.player_id = (select auth.uid())
+  );
+$$;
+
+revoke all on function private.is_room_member(uuid) from PUBLIC, anon, authenticated;
+revoke all on function private.is_match_member(uuid) from PUBLIC, anon, authenticated;
+
+grant usage on schema private to authenticated;
+grant execute on function private.is_room_member(uuid) to authenticated;
+grant execute on function private.is_match_member(uuid) to authenticated;
+
 -- ------------------------------------------------------------------ profiles
+-- المستخدم يقرأ ملفه وينشئه ويعدّل اسمه فقط.
+-- XP لا يمكن تعديله من المتصفح: الحماية من صلاحيات الأعمدة وليس RLS وحده.
+
+revoke all privileges on table public.profiles from PUBLIC, anon, authenticated;
+
+grant select on table public.profiles to authenticated;
+grant insert (id, display_name) on table public.profiles to authenticated;
+grant update (display_name) on table public.profiles to authenticated;
+
 drop policy if exists profiles_self on public.profiles;
-create policy profiles_self on public.profiles
-  for all to authenticated
-  using (id = auth.uid()) with check (id = auth.uid());
+drop policy if exists profiles_read_self on public.profiles;
+drop policy if exists profiles_insert_self on public.profiles;
+drop policy if exists profiles_update_self on public.profiles;
+
+create policy profiles_read_self on public.profiles
+  for select to authenticated
+  using (id = (select auth.uid()));
+
+create policy profiles_insert_self on public.profiles
+  for insert to authenticated
+  with check (id = (select auth.uid()));
+
+create policy profiles_update_self on public.profiles
+  for update to authenticated
+  using (id = (select auth.uid()))
+  with check (id = (select auth.uid()));
 
 -- ------------------------------------------------------------------ venues
 drop policy if exists venues_read on public.venues;
@@ -162,78 +237,70 @@ create policy venues_read on public.venues
   for select to anon, authenticated using (active);
 
 -- ----------------------------------------------------------------- questions
--- حجب الإجابة الصحيحة على مستوى الأعمدة: المتصفح لا يستطيع قراءتها إطلاقاً.
-revoke all on public.questions from anon, authenticated;
-grant select (id, venue_id, prompt, choices, mode, active, created_at)
-  on public.questions to anon, authenticated;
+-- لا يقرأ المتصفح جدول الأسئلة إطلاقاً (ولا الإجابة الصحيحة بالطبع).
+-- القراءة تتم عبر دوال SECURITY DEFINER تعيد نص السؤال والخيارات فقط،
+-- وبوابة الإجابة الصحيحة تبقى داخل الخادم.
 
 drop policy if exists questions_read on public.questions;
-create policy questions_read on public.questions
-  for select to anon, authenticated using (active);
+
+revoke all privileges on table public.questions from PUBLIC, anon, authenticated;
+
+-- صلاحيات الخادم فقط (service_role المستخدم داخل Supabase وليس في الواجهة)
+grant select, insert, update, delete on table public.questions to service_role;
 
 -- -------------------------------------------------------------------- rooms
+
 drop policy if exists rooms_member_read on public.rooms;
+
 create policy rooms_member_read on public.rooms
   for select to authenticated
   using (
-    host_id = auth.uid()
-    or exists (
-      select 1 from public.room_players rp
-      where rp.room_id = rooms.id and rp.player_id = auth.uid()
-    )
+    host_id = (select auth.uid())
+    or (select private.is_room_member(id))
   );
 
+-- ---------------------------------------------------------------- room_players
+
 drop policy if exists room_players_member_read on public.room_players;
+
 create policy room_players_member_read on public.room_players
   for select to authenticated
   using (
-    exists (
-      select 1 from public.room_players me
-      where me.room_id = room_players.room_id and me.player_id = auth.uid()
-    )
+    (select private.is_room_member(room_id))
   );
 
 -- ------------------------------------------------------- جداول المباراة
+-- كلها تستخدم private.is_match_member ⇒ استعلام واحد آمن بلا تكرار RLS.
+
 drop policy if exists matches_member_read on public.matches;
 create policy matches_member_read on public.matches
   for select to authenticated
-  using (exists (select 1 from public.room_players rp
-                 where rp.room_id = matches.room_id and rp.player_id = auth.uid()));
+  using ((select private.is_room_member(room_id)));
 
 drop policy if exists match_questions_member_read on public.match_questions;
 create policy match_questions_member_read on public.match_questions
   for select to authenticated
-  using (exists (select 1 from public.matches m
-                 join public.room_players rp on rp.room_id = m.room_id
-                 where m.id = match_questions.match_id and rp.player_id = auth.uid()));
+  using ((select private.is_match_member(match_id)));
 
 drop policy if exists match_teams_member_read on public.match_teams;
 create policy match_teams_member_read on public.match_teams
   for select to authenticated
-  using (exists (select 1 from public.matches m
-                 join public.room_players rp on rp.room_id = m.room_id
-                 where m.id = match_teams.match_id and rp.player_id = auth.uid()));
+  using ((select private.is_match_member(match_id)));
 
 drop policy if exists match_team_members_member_read on public.match_team_members;
 create policy match_team_members_member_read on public.match_team_members
   for select to authenticated
-  using (exists (select 1 from public.matches m
-                 join public.room_players rp on rp.room_id = m.room_id
-                 where m.id = match_team_members.match_id and rp.player_id = auth.uid()));
+  using ((select private.is_match_member(match_id)));
 
 drop policy if exists answers_member_read on public.answers;
 create policy answers_member_read on public.answers
   for select to authenticated
-  using (exists (select 1 from public.matches m
-                 join public.room_players rp on rp.room_id = m.room_id
-                 where m.id = answers.match_id and rp.player_id = auth.uid()));
+  using ((select private.is_match_member(match_id)));
 
 drop policy if exists match_results_member_read on public.match_results;
 create policy match_results_member_read on public.match_results
   for select to authenticated
-  using (exists (select 1 from public.matches m
-                 join public.room_players rp on rp.room_id = m.room_id
-                 where m.id = match_results.match_id and rp.player_id = auth.uid()));
+  using ((select private.is_match_member(match_id)));
 
 -- لا توجد سياسة insert/update/delete على جداول المباراة:
 -- أي كتابة مباشرة من المتصفح تُرفض، والكتابة الحقيقية عبر الدوال أدناه فقط.
@@ -546,6 +613,13 @@ begin
   where rp.room_id = v_room;
 
   update public.rooms set status = 'finished' where id = v_room;
+
+  -- منح XP من الخادم فقط: 10 نقاط لعب = 1 XP (لا يمكن للمتصفح تعديل XP)
+  update public.profiles p
+     set xp = p.xp + greatest(0, round(r.total / 10.0)::int)
+    from public.match_results r
+   where r.match_id = p_match_id
+     and r.player_id = p.id;
 end $$;
 
 -- ------------------------------------------------------------- إنشاء غرفة
@@ -683,13 +757,19 @@ begin
   -- خمسة أسئلة فردية: ثلاثة للجولة الأولى واثنان للمواجهة الأخيرة
   select array_agg(id) into v_solo from (
     select id from public.questions
-    where active and mode in ('solo', 'any')
+    where active
+      and (valid_from is null or valid_from <= now())
+      and (valid_until is null or valid_until > now())
+      and mode in ('solo', 'any')
     order by random() limit 5
   ) s;
 
   select array_agg(id) into v_teams_q from (
     select id from public.questions
-    where active and mode in ('team', 'any')
+    where active
+      and (valid_from is null or valid_from <= now())
+      and (valid_until is null or valid_until > now())
+      and mode in ('team', 'any')
     order by random() limit 3
   ) t;
 
@@ -726,8 +806,84 @@ begin
 end $$;
 
 -- ============================================================================
---  بيانات أولية: محل واحد + بنك الأسئلة (نفس أسئلة النسخة المحلية)
+--  قراءة السؤال الحالي من المتصفح — بلا الإجابة الصحيحة إطلاقاً
+--  (لأن جدول الأسئلة نفسه غير مقروء للعميل بعد إغلاق صلاحياته)
 -- ============================================================================
+create or replace function public.current_question(p_match_id uuid)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_uid  uuid := auth.uid();
+  v_m    record;
+  v_mq   record;
+  v_q    record;
+begin
+  if v_uid is null then
+    return jsonb_build_object('ok', false, 'reason', 'unauthenticated');
+  end if;
+
+  select * into v_m from public.matches where id = p_match_id;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not-found');
+  end if;
+  if not private.is_room_member(v_m.room_id) then
+    return jsonb_build_object('ok', false, 'reason', 'not-in-room');
+  end if;
+
+  select * into v_mq from public.match_questions
+  where match_id = p_match_id
+    and round_index = v_m.round_index
+    and question_index = v_m.question_index;
+
+  if not found then
+    return jsonb_build_object(
+      'ok', true, 'phase', v_m.phase,
+      'roundIndex', v_m.round_index, 'questionIndex', v_m.question_index
+    );
+  end if;
+
+  select q.prompt, q.choices, q.explanation, q.correct_index
+    into v_q from public.questions q where q.id = v_mq.question_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'phase', v_m.phase,
+    'matchQuestionId', v_mq.id,
+    'roundIndex', v_m.round_index,
+    'questionIndex', v_m.question_index,
+    'questionCount', (select count(*) from public.match_questions
+                      where match_id = p_match_id and round_index = v_m.round_index),
+    'mode', v_mq.mode,
+    'prompt', v_q.prompt,
+    'choices', v_q.choices,
+    'startedAt', v_mq.started_at,
+    'endsAt', v_mq.ends_at,
+    -- الإجابة الصحيحة تُكشف فقط في مرحلة الكشف
+    'correctIndex', case when v_m.phase in ('question_reveal', 'round_summary', 'match_end')
+                         then v_q.correct_index else null end,
+    'explanation', case when v_m.phase in ('question_reveal', 'round_summary', 'match_end')
+                        then v_q.explanation else null end
+  );
+end $$;
+
+-- ============================================================================
+--  الترتيب الأسبوعي — مجموع نقاط الأسبوع الحالي (عرض عام مقروء)
+--  العرض مملوك لـ postgres لذا يتجاوز RLS الخاص بـ profiles،
+--  ولا يكشف إلا الاسم والنقاط (لا XP ولا بيانات أخرى).
+-- ============================================================================
+create or replace view public.weekly_leaderboard as
+select
+  a.player_id,
+  coalesce(nullif(p.display_name, ''), 'لاعب') as display_name,
+  sum(a.points)::int as week_points,
+  rank() over (order by sum(a.points) desc) as rank
+from public.answers a
+join public.profiles p on p.id = a.player_id
+where a.created_at >= date_trunc('week', now())
+group by a.player_id, p.display_name;
+
+revoke all on public.weekly_leaderboard from PUBLIC, anon;
+grant select on public.weekly_leaderboard to authenticated;
 insert into public.venues (code, name)
 values ('SANA-01', 'مقهى سنا · فرع التجربة')
 on conflict (code) do nothing;
