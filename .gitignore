@@ -1,13 +1,14 @@
-# الاعتمادات والمخرجات (لا تُرفع إلى GitHub)
+
+# Dependencies and build output
 node_modules/
 dist/
 .vite/
 
-# متغيرات البيئة — لا تُرفع أبداً
+# Environment variables
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
-# ملفات النظام
+# System files
 .DS_Store
 Thumbs.db
