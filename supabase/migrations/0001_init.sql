@@ -755,6 +755,11 @@ begin
   delete from public.match_questions where match_id = v_match;
 
   -- خمسة أسئلة فردية: ثلاثة للجولة الأولى واثنان للمواجهة الأخيرة
+  -- ⚠️ valid_from و valid_until اختيارية (NULL = بلا حد زمني).
+  --    لذلك الشرط يجب أن يكون NULL-safe:
+  --      (valid_from  IS NULL OR valid_from  <= now())
+  --      (valid_until IS NULL OR valid_until >  now())
+  --    أي صيغة تفرض المقارنة مباشرة تُستبعد كل الأسئلة التي بلا تاريخ.
   select array_agg(id) into v_solo from (
     select id from public.questions
     where active
