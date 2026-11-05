@@ -43,13 +43,18 @@ function setStatus(status: OrderStatus): void {
   }
 }
 
-/** التبديل بين «متابعة الطلب» و«نقاط الولاء». */
-export function showView(which: 'order' | 'loyalty'): void {
-  const loyalty = which === 'loyalty';
-  $('#homeView')?.classList.toggle('hidden', loyalty);
-  $('#loyaltyView')?.classList.toggle('active', loyalty);
-  $('#navOrder')?.classList.toggle('active', !loyalty);
-  $('#navLoyalty')?.classList.toggle('active', loyalty);
+/** التبديل بين «متابعة الطلب» و«نقاط الولاء» و«الحساب». */
+export function showView(which: 'order' | 'loyalty' | 'account'): void {
+  const isLoyalty = which === 'loyalty';
+  const isAccount = which === 'account';
+  const isOrder = which === 'order';
+
+  $('#homeView')?.classList.toggle('hidden', !isOrder);
+  $('#loyaltyView')?.classList.toggle('active', isLoyalty);
+  $('#accountView')?.classList.toggle('active', isAccount);
+  $('#navOrder')?.classList.toggle('active', isOrder);
+  $('#navLoyalty')?.classList.toggle('active', isLoyalty);
+  $('#navAccount')?.classList.toggle('active', isAccount);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -106,6 +111,7 @@ export function initOrderView(): void {
   // التنقل
   $('#navOrder')?.addEventListener('click', () => showView('order'));
   $('#navLoyalty')?.addEventListener('click', () => showView('loyalty'));
+  $('#navAccount')?.addEventListener('click', () => showView('account'));
   $('#sideGameBtn')?.addEventListener('click', () => {
     showView('order');
     $('.games-head')?.scrollIntoView({ behavior: 'smooth' });
