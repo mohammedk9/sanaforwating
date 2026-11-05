@@ -21,7 +21,9 @@ import {
   listQuestionAnswers,
   listTeams,
   roomErrorText,
+  setMyName,
   startMatch,
+  startSoloMatch,
   submitAnswer,
   type AnswerRow,
   type CurrentQuestion,
@@ -100,10 +102,14 @@ function renderRoomBox(): void {
         <button class="btn" id="createRoomBtn">أنشئ غرفة</button>
         <button class="btn light" id="joinRoomBtn">انضم برمز</button>
       </div>
+      <div class="room-actions" style="margin-top:8px">
+        <button class="btn outline" id="soloBtn">العب لوحدي (تُحتسب XP)</button>
+      </div>
       <div id="roomHint" style="text-align:center;font-size:10px;color:#8c7a6b;margin-top:9px">بلا حساب — اللعب العادي متاح للجميع.</div>`;
 
     $('#createRoomBtn')?.addEventListener('click', () => void handleCreate());
     $('#joinRoomBtn')?.addEventListener('click', () => void handleJoin());
+    $('#soloBtn')?.addEventListener('click', () => void handleSolo());
     return;
   }
 
@@ -136,8 +142,30 @@ async function handleCreate(): Promise<void> {
     meId = await currentPlayerId();
     session = await createRoom(MAX_PLAYERS);
     isHostFlag = true;
+    // نضبط اسم المضيف حتى يظهر اسمه للجميع بدل «المضيف»
+    await setMyName(session.code, name);
     await refreshPlayers();
     await openLobby(name);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : roomErrorText());
+  }
+}
+
+/**
+ * اللعب الفردي: مباراة موثّقة على الخادم بلاعب واحد.
+ * الوقت والنقاط من الخادم، لذلك تُحتسب XP والترتيب الأسبوعي بلا أي احتمال غش.
+ */
+async function handleSolo(): Promise<void> {
+  const name = ($<HTMLInputElement>('#roomName')?.value ?? 'أنت').trim();
+  try {
+    await ensureSession();
+    meId = await currentPlayerId();
+    session = await startSoloMatch(name);
+    isHostFlag = true;
+    players = await listPlayers(session.roomId);
+    openPanel('تحدي المعرفة — لعبة فردية');
+    await connectChannel();
+    await refresh();
   } catch (error) {
     toast(error instanceof Error ? error.message : roomErrorText());
   }

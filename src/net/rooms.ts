@@ -96,6 +96,29 @@ export async function createRoom(maxPlayers: number): Promise<RoomSession> {
   };
 }
 
+/**
+ * يضبط اسم المضيف في الغرفة (create_room يضع اسماً افتراضياً).
+ * نستخدم join_room لأنه يحدّث الاسم لنفس اللاعب (upsert) بلا تكرار.
+ */
+export async function setMyName(code: string, displayName: string): Promise<void> {
+  const name = displayName.trim();
+  if (!name) return;
+  await supabase().rpc('join_room', { p_code: code.trim(), p_name: name });
+}
+
+/**
+ * مباراة فردية موثّقة على الخادم: غرفة بسعة لاعب واحد.
+ *
+ * لماذا؟ حتى تُحتسب XP والترتيب الأسبوعي من الخادم نفسه،
+ * ولا يستطيع المتصفح إرسال نتيجة من عنده.
+ */
+export async function startSoloMatch(displayName: string): Promise<RoomSession> {
+  const session = await createRoom(1);
+  await setMyName(session.code, displayName);
+  await startMatch(session.roomId);
+  return session;
+}
+
 /** الانضمام بالرمز. */
 export async function joinRoom(code: string, displayName: string): Promise<RoomSession> {
   await ensureSession();
