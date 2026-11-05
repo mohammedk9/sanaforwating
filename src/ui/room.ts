@@ -15,6 +15,7 @@ import {
   createRoom,
   fetchCurrentQuestion,
   fetchMatchState,
+  fetchServerOffset,
   joinRoom,
   listMatchAnswers,
   listPlayers,
@@ -47,6 +48,13 @@ let phaseEndsAt: string | null = null;
 let timerId: number | undefined;
 let advancedFor: string | null = null;
 let refreshTimer: number | undefined;
+/** فرق توقيت الخادم عن ساعة الجهاز بالمللي ثانية. */
+let clockOffset = 0;
+
+/** الوقت الحالي بمرجع الخادم (يصمد أمام ساعة هاتف غير مضبوطة). */
+function serverNow(): number {
+  return Date.now() + clockOffset;
+}
 
 /** اسم اللاعب من المعرّف. */
 function nameOf(playerId: string): string {
@@ -256,6 +264,10 @@ async function connectChannel(): Promise<void> {
   if (!session) return;
   if (subscription) await subscription.unsubscribe();
 
+  // نضبط فرق التوقيت مرة عند الدخول حتى يكون العدّاد مطابقاً للخادم
+  clockOffset = await fetchServerOffset();
+  debug('clock_offset', String(Math.round(clockOffset)));
+
   subscription = subscribeRoom(session.roomId, session.matchId, {
     onPlayersChanged: () => void refresh(),
     onMatchChanged: () => void refresh(),
@@ -307,7 +319,7 @@ function startClock(): void {
   window.clearInterval(timerId);
   timerId = window.setInterval(() => {
     if (!session || !phaseEndsAt) return;
-    const remaining = new Date(phaseEndsAt).getTime() - Date.now();
+    const remaining = new Date(phaseEndsAt).getTime() - serverNow();
 
     const num = $('#timerNum');
     if (num && matchPhase === 'question_open') {
@@ -319,13 +331,61 @@ function startClock(): void {
       if (total > 0) fill.style.width = `${Math.max(0, Math.min(1, remaining / total)) * 100}%`;
     }
 
+    // انتهى الوقت: نطلب من الخادم التقديم. إن رفض (لم يحن بعد) نعيد المحاولة
+    // في الدورة التالية — لأن ساعة الجهاز قد تسبق ساعة الخادم بقليل.
     const key = `${matchPhase}:${current?.questionIndex ?? 0}`;
     if (remaining <= 0 && advancedFor !== key) {
       advancedFor = key;
-      void advanceMatch(session.matchId).then(() => refresh());
+      void advanceMatch(session.matchId).then((result) => {
+        if (!result.advanced) {
+          advancedFor = null; // إعادة المحاولة في الدورة التالية
+          if (result.reason && result.reason !== 'not-due') {
+            debug('advance_failed', result.reason);
+          }
+          return;
+        }
+        debug('advanced', result.phase ?? '');
+        void refresh();
+      });
+    }
+
+    // شبكة أمان: إن تجاوزنا وقت المرحلة بأكثر من 6 ثوانٍ ولم يتغيّر شيء
+    // (حدث Realtime مفقود أو تعطّل الاتصال) نعيد قراءة الحالة من القاعدة.
+    if (remaining < -6000) {
+      debug('stuck_reload', matchPhase);
+      void refresh();
     }
   }, 300);
 }
+
+/** تشخيص خفيف يساعد في اكتشاف مشاكل المزامنة (يُقرأ من الاختبارات الآلية). */
+interface DebugSnapshot {
+  hasSession: boolean;
+  matchId: string | null;
+  phase: string;
+  phaseEndsAt: string | null;
+  questionIndex: number | null;
+  hasQuestion: boolean;
+  lastEvent: string;
+}
+let lastDebug = '';
+function debug(event: string, extra = ''): void {
+  lastDebug = extra ? `${event}:${extra}` : event;
+}
+declare global {
+  interface Window {
+    __sanaDebug?: () => DebugSnapshot;
+  }
+}
+window.__sanaDebug = () => ({
+  hasSession: Boolean(session),
+  matchId: session?.matchId ?? null,
+  phase: matchPhase,
+  phaseEndsAt,
+  questionIndex: current?.questionIndex ?? null,
+  hasQuestion: Boolean(current?.prompt),
+  lastEvent: lastDebug,
+});
 
 /** شاشة المباراة: تُرسم من حالة الخادم فقط. */
 function renderMatch(): void {

@@ -119,6 +119,26 @@ export async function startSoloMatch(displayName: string): Promise<RoomSession> 
   return session;
 }
 
+/**
+ * فرق توقيت الخادم عن ساعة الجهاز (بالمللي ثانية).
+ * يُستخدم لضبط العدّاد وطلب تقديم المرحلة بدقة، فلا يتأخر العرض
+ * إن كانت ساعة الهاتف متأخرة.
+ */
+export async function fetchServerOffset(): Promise<number> {
+  const sentAt = Date.now();
+  const { data, error } = await supabase().rpc('server_now');
+  const receivedAt = Date.now();
+
+  if (error || !data) return 0;
+
+  const serverTime = new Date(data as string).getTime();
+  if (Number.isNaN(serverTime)) return 0;
+
+  // نصف زمن الرحلة تقدير معياري لفرق التوقيت
+  const roundTrip = receivedAt - sentAt;
+  return serverTime + roundTrip / 2 - receivedAt;
+}
+
 /** الانضمام بالرمز. */
 export async function joinRoom(code: string, displayName: string): Promise<RoomSession> {
   await ensureSession();
