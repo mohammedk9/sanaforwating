@@ -202,3 +202,83 @@ export async function isHost(roomId: string): Promise<boolean> {
   if (error || !data) return false;
   return (data.host_id as string) === me;
 }
+
+/** حالة الغرفة (لانتظار انطلاق المباراة في اللوبي). */
+export async function fetchRoomStatus(roomId: string): Promise<string | null> {
+  const { data, error } = await supabase()
+    .from('rooms')
+    .select('status')
+    .eq('id', roomId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.status as string;
+}
+
+export interface AnswerRow {
+  playerId: string;
+  teamId: string | null;
+  choiceIndex: number;
+  correct: boolean;
+  points: number;
+  elapsedMs: number;
+}
+
+/** إجابات سؤال واحد (يُستخدم لعرض من أجاب وما اختاره). */
+export async function listQuestionAnswers(matchQuestionId: string): Promise<AnswerRow[]> {
+  const { data, error } = await supabase()
+    .from('answers')
+    .select('player_id, team_id, choice_index, correct, points, elapsed_ms')
+    .eq('match_question_id', matchQuestionId);
+
+  if (error) return [];
+  return (data ?? []).map((row) => ({
+    playerId: row.player_id as string,
+    teamId: (row.team_id as string | null) ?? null,
+    choiceIndex: row.choice_index as number,
+    correct: row.correct as boolean,
+    points: row.points as number,
+    elapsedMs: row.elapsed_ms as number,
+  }));
+}
+
+/** كل إجابات المباراة (لحساب لوحة النقاط أثناء اللعب). */
+export async function listMatchAnswers(matchId: string): Promise<AnswerRow[]> {
+  const { data, error } = await supabase()
+    .from('answers')
+    .select('player_id, team_id, choice_index, correct, points, elapsed_ms')
+    .eq('match_id', matchId);
+
+  if (error) return [];
+  return (data ?? []).map((row) => ({
+    playerId: row.player_id as string,
+    teamId: (row.team_id as string | null) ?? null,
+    choiceIndex: row.choice_index as number,
+    correct: row.correct as boolean,
+    points: row.points as number,
+    elapsedMs: row.elapsed_ms as number,
+  }));
+}
+
+/** الفرق وأعضاؤها في المباراة (لعرض من عليه دور الإرسال). */
+export async function listTeams(
+  matchId: string,
+): Promise<{ teamId: string; name: string; memberIds: string[] }[]> {
+  const { data: teams, error } = await supabase()
+    .from('match_teams')
+    .select('team_id, name')
+    .eq('match_id', matchId);
+  if (error || !teams) return [];
+
+  const { data: members } = await supabase()
+    .from('match_team_members')
+    .select('team_id, player_id')
+    .eq('match_id', matchId);
+
+  return teams.map((team) => ({
+    teamId: team.team_id as string,
+    name: team.name as string,
+    memberIds: (members ?? [])
+      .filter((row) => row.team_id === team.team_id)
+      .map((row) => row.player_id as string),
+  }));
+}

@@ -16,8 +16,8 @@ import './styles/responsive.css';
 
 import { initOrderView } from './ui/order.ts';
 import { initGamePanel } from './ui/game.ts';
-import { initMatchDemo } from './ui/match.ts';
+import { initRoomUi } from './ui/room.ts';
 
 initOrderView();
 initGamePanel();
-initMatchDemo();
+initRoomUi();
