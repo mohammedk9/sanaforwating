@@ -36,7 +36,13 @@ select
   has_function_privilege('anon', 'private.is_room_member(uuid)', 'EXECUTE')
                                   as anon_can_call_room_member,        -- متوقع: false
   has_function_privilege('authenticated', 'private.is_room_member(uuid)', 'EXECUTE')
-                                  as member_can_call_room_member;      -- متوقع: true
+                                  as member_can_call_room_member,      -- متوقع: true
+
+  -- الترتيب الأسبوعي: لا anon
+  has_function_privilege('anon', 'public.weekly_leaderboard(integer)', 'EXECUTE')
+                                  as anon_can_read_leaderboard,        -- متوقع: false
+  has_function_privilege('authenticated', 'public.weekly_leaderboard(integer)', 'EXECUTE')
+                                  as member_can_read_leaderboard;      -- متوقع: true
 
 -- ---------------------------------------------------------------------------
 -- فحص ثانٍ: عدد الأسئلة المهيّأة والمحلات

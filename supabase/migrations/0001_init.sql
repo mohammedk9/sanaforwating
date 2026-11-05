@@ -642,8 +642,10 @@ begin
 
   loop
     v_try := v_try + 1;
-    v_code := upper(substr(replace(encode(gen_random_bytes(6), 'base64'), '/', 'A'), 1, 5));
-    v_code := translate(v_code, '+0O1IoIl', 'BCDEFGHJK');
+    -- رمز الغرفة: 5 محارف من معرّف UUID المدمج.
+    -- (لا نستخدم gen_random_bytes لأنه في Supabase داخل مخطط extensions
+    --  بينما هذه الدالة تعمل بـ search_path = public.)
+    v_code := upper(substr(translate(gen_random_uuid()::text, '-', ''), 1, 5));
     exit when not exists (select 1 from public.rooms where code = v_code);
     if v_try > 25 then
       return jsonb_build_object('ok', false, 'reason', 'code-generation-failed');
@@ -872,23 +874,40 @@ begin
 end $$;
 
 -- ============================================================================
---  الترتيب الأسبوعي — مجموع نقاط الأسبوع الحالي (عرض عام مقروء)
---  العرض مملوك لـ postgres لذا يتجاوز RLS الخاص بـ profiles،
---  ولا يكشف إلا الاسم والنقاط (لا XP ولا بيانات أخرى).
+--  الترتيب الأسبوعي — دالة بصلاحيات محددة بدل View
+--  السبب: Supabase يرفع تحذيراً على أي View بصلاحيات مالكها لأنه قد يكون
+--  مكشوفاً عبر API. الدالة تعطينا تحكماً صريحاً: لا anon، ولا استعلام حر،
+--  وحد أقصى للصفوف، ولا كشف إلا للاسم والنقاط.
 -- ============================================================================
-create or replace view public.weekly_leaderboard as
-select
-  a.player_id,
-  coalesce(nullif(p.display_name, ''), 'لاعب') as display_name,
-  sum(a.points)::int as week_points,
-  rank() over (order by sum(a.points) desc) as rank
-from public.answers a
-join public.profiles p on p.id = a.player_id
-where a.created_at >= date_trunc('week', now())
-group by a.player_id, p.display_name;
+drop view if exists public.weekly_leaderboard;
 
-revoke all on public.weekly_leaderboard from PUBLIC, anon;
-grant select on public.weekly_leaderboard to authenticated;
+create or replace function public.weekly_leaderboard(p_limit integer default 20)
+returns table (
+  place        bigint,
+  player_id    uuid,
+  display_name text,
+  week_points  integer
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    rank() over (order by sum(a.points) desc) as place,
+    a.player_id,
+    coalesce(nullif(p.display_name, ''), 'لاعب') as display_name,
+    sum(a.points)::int as week_points
+  from public.answers a
+  join public.profiles p on p.id = a.player_id
+  where a.created_at >= date_trunc('week', now())
+  group by a.player_id, p.display_name
+  order by week_points desc
+  limit least(greatest(coalesce(p_limit, 20), 1), 100)
+$$;
+
+revoke all on function public.weekly_leaderboard(integer) from PUBLIC, anon;
+grant execute on function public.weekly_leaderboard(integer) to authenticated;
 insert into public.venues (code, name)
 values ('SANA-01', 'مقهى سنا · فرع التجربة')
 on conflict (code) do nothing;
