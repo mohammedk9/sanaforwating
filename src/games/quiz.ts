@@ -10,8 +10,31 @@ import { toast } from '../ui/dom.ts';
 import { createMatch, type MatchEngine, type QuestionView } from '../core/engine.ts';
 import { buildMatchPlan, pickRoundQuestions, type Question } from '../core/matchPlan.ts';
 import { checkPlayerCount, MAX_PLAYERS, MIN_PLAYERS, normalizePlayerNames } from '../core/players.ts';
+import extraQuestionsJson from '../data/questions.json';
 
-export const questions: Question[] = [
+/** شكل السؤال في ملف البيانات (بلا أنواع الواجهة). */
+interface SeedQuestion {
+  q: string;
+  a: string[];
+  choices?: never;
+  c: number;
+  ex: string;
+  mode: 'solo' | 'team' | 'any';
+  category?: string;
+  difficulty?: string;
+}
+
+/** بنك الأسئلة الإضافي (59 سؤالاً) من ملف واحد يغذّي الواجهة وقاعدة البيانات. */
+const extraQuestions: Question[] = (extraQuestionsJson as SeedQuestion[]).map((item) => ({
+  q: item.q,
+  a: item.a,
+  c: item.c,
+  ex: item.ex,
+  mode: item.mode,
+}));
+
+/** الأسئلة الأساسية (سبق اعتمادها). */
+const baseQuestions: Question[] = [
   { q: 'كم عدد كواكب المجموعة الشمسية؟', a: ['7 كواكب', '8 كواكب', '9 كواكب', '10 كواكب'], c: 1, ex: 'عدد الكواكب المعترف بها ثمانية.', mode: 'solo' },
   { q: 'ما أكبر محيط على الأرض؟', a: ['الأطلسي', 'الهندي', 'الهادئ', 'المتجمد الشمالي'], c: 2, ex: 'المحيط الهادئ هو الأكبر مساحة.', mode: 'solo' },
   { q: 'ما الغاز الذي تمتصه النباتات من الهواء؟', a: ['الأكسجين', 'ثاني أكسيد الكربون', 'النيتروجين', 'الهيدروجين'], c: 1, ex: 'تستخدم النباتات ثاني أكسيد الكربون في البناء الضوئي.', mode: 'solo' },
@@ -22,6 +45,9 @@ export const questions: Question[] = [
   { q: 'ما اللون الناتج عن خلط الأزرق مع الأصفر؟', a: ['البرتقالي', 'الأخضر', 'البنفسجي', 'البني'], c: 1, ex: 'خلط الأزرق مع الأصفر يعطي الأخضر.', mode: 'team' },
   { q: 'كم عدد أيام السنة الكبيسة؟', a: ['364 يوماً', '365 يوماً', '366 يوماً', '367 يوماً'], c: 2, ex: 'السنة الكبيسة 366 يوماً.', mode: 'team' },
 ];
+
+/** البنك الكامل: الأساسية + الإضافية (68 سؤالاً) — كل سؤال بـ4 خيارات. */
+export const questions: Question[] = [...baseQuestions, ...extraQuestions];
 
 /** أسماء مقترحة تظهر في اللوبي كنموذج سريع. */
 const nameHints = ['لينا', 'نورة', 'أحمد', 'بدر', 'سلمى', 'دانة', 'خالد', 'جود'];
