@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>سنا - ألعاب انتظار القهوة</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap">
+<style>
+:root{--bg:#F1EADC;--card:#FFFDF8;--ink:#301A14;--mute:#7A6A5F;--acc:#301A14;--accink:#FFFDF8;--line:#DCD2C0;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1B120E;--card:#2A1C16;--ink:#F3E6D3;--mute:#B09F8C;--acc:#F3E6D3;--accink:#1B120E;--line:#43302A}}
+:root[data-theme="dark"]{--bg:#1B120E;--card:#2A1C16;--ink:#F3E6D3;--mute:#B09F8C;--acc:#F3E6D3;--accink:#1B120E;--line:#43302A}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Tajawal,system-ui,sans-serif;display:flex;justify-content:center}
+main{width:100%;max-width:440px;padding:18px 16px 28px}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.logo{width:72px;height:auto;flex:none;color:var(--ink)}
+h1{font-size:24px;font-weight:900;margin:0;line-height:1.3}
+.sub{color:var(--mute);margin:2px 0 0;font-size:15px}
+.order{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;margin-bottom:14px}
+.order input{width:64px;font:inherit;font-weight:900;font-size:20px;text-align:center;border:0;border-bottom:2px solid var(--acc);background:transparent;color:var(--ink)}
+.order span{flex:1;font-size:15px}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;font:inherit;font-weight:700;padding:11px 8px;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--acc);color:var(--accink);border-color:var(--acc)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.stage{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px}
+.wrap{position:relative;width:100%;max-width:340px;margin:0 auto;aspect-ratio:1/1}
+.wrap canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;border-radius:50%}
+#guide{pointer-events:none}
+.tools{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px}
+.tools button{font:inherit;font-size:14px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.tools button[aria-pressed="true"]{border-color:var(--acc);box-shadow:inset 0 0 0 2px var(--acc)}
+.sw{width:34px;height:34px;padding:0!important;border-radius:50%!important}
+.hint{text-align:center;color:var(--mute);font-size:14px;margin:10px 0 0}
+#game{display:block;width:100%;max-width:340px;margin:0 auto;aspect-ratio:340/440;border-radius:14px;background:#1F1511;touch-action:none}
+.hud{display:flex;justify-content:space-between;font-weight:700;margin:0 auto 8px;max-width:340px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <header class="brand">
+    <svg class="logo" viewBox="0 0 347 244" role="img" aria-label="شعار سنا"><path fill="currentColor" d="M16,0H72Q88,0 88,16V140A21,21 0 0 0 130,140V16Q130,0 146,0H200Q216,0 216,16V140A22,22 0 0 0 260,140V16Q260,0 276,0H331Q347,0 347,16V222Q347,244 325,244H22Q0,244 0,222V16Q0,0 16,0Z"/></svg>
+    <div><h1>قهوتك قيد التحضير</h1><p class="sub">أهلاً بك في سنا، العب شوي وطلبك يجهز.</p></div>
+  </header>
+
+  <label class="order">
+    <span>رقم طلبك</span>
+    <input id="num" inputmode="numeric" maxlength="3" placeholder="٠٠" aria-label="رقم الطلب">
+  </label>
+  <div id="called" class="order" hidden style="border-color:var(--acc)"><span>🔔 <b>طلبك جاهز!</b> تفضل بالاستلام من الكاونتر.</span></div>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="t1" aria-selected="true">ارسم على فنجانك</button>
+    <button role="tab" id="t2" aria-selected="false">صيد الحبوب</button>
+  </div>
+
+  <section id="p1" class="stage">
+    <div class="wrap">
+      <canvas id="latte" aria-label="سطح فنجان قهوة للرسم"></canvas>
+      <canvas id="guide"></canvas>
+    </div>
+    <div class="tools" id="colors"></div>
+    <div class="tools" id="shapes">
+      <button data-g="0" aria-pressed="true">رسم حر</button>
+      <button data-g="1" aria-pressed="false">قلب</button>
+      <button data-g="2" aria-pressed="false">ورقة</button>
+      <button data-g="3" aria-pressed="false">وردة</button>
+      <button data-g="4" aria-pressed="false">شعار سنا</button>
+    </div>
+    <div class="tools">
+      <button id="thin">رفيع</button><button id="thick">عريض</button><button id="clr">مسح</button>
+    </div>
+    <p class="hint">اسحب بإصبعك على القهوة وارسم بالحليب. اتبع الخط الخفيف لتخرج بشكل أجمل.</p>
+  </section>
+
+  <section id="p2" class="stage" hidden>
+    <div class="hud"><span id="sc">النقاط: ٠</span><span id="lv">❤️❤️❤️</span><span id="bs">الأفضل: ٠</span></div>
+    <canvas id="game" width="340" height="440" aria-label="لعبة التقاط حبوب القهوة"></canvas>
+    <p class="hint">حرّك الفنجان والتقط الحبوب الطازجة. الحبة المحروقة (الحمراء) تنقص قلباً، والحبة التي تسقط أيضاً.</p>
+  </section>
+</main>
+
+<script>
+const AR=n=>String(n).replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
+const $=id=>document.getElementById(id);
+
+/* رقم الطلب (يُدخله الزبون، ويمكن للكاشير كتابة "ready" في الرابط لإظهار التنبيه) */
+$('num').addEventListener('input',e=>{e.target.value=e.target.value.replace(/\D/g,'')});
+if(location.hash==='#ready')$('called').hidden=false;
+addEventListener('hashchange',()=>{$('called').hidden=location.hash!=='#ready'});
+
+/* التبويبات */
+function tab(n){
+  $('p1').hidden=n!==1;$('p2').hidden=n!==2;
+  $('t1').setAttribute('aria-selected',n===1);$('t2').setAttribute('aria-selected',n===2);
+  if(n!==2)running=false;
+}
+$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
+
+/* ===== لعبة 1: فن اللاتيه ===== */
+const S=340,dpr=Math.min(devicePixelRatio||1,2);
+function setup(c){c.width=S*dpr;c.height=S*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);return x}
+const L=$('latte'),lc=setup(L),G=$('guide'),gc=setup(G);
+let color='#FFF4E0',size=9,gShape=0;
+const LOGO=new Path2D('M16,0H72Q88,0 88,16V140A21,21 0 0 0 130,140V16Q130,0 146,0H200Q216,0 216,16V140A22,22 0 0 0 260,140V16Q260,0 276,0H331Q347,0 347,16V222Q347,244 325,244H22Q0,244 0,222V16Q0,0 16,0Z');
+const COLS=[['#FFF4E0','حليب'],['#5A3420','شوكولاتة'],['#C98A3E','كراميل']];
+function base(){
+  lc.clearRect(0,0,S,S);
+  const g=lc.createRadialGradient(170,170,10,170,170,160);
+  g.addColorStop(0,'#A5683A');g.addColorStop(.7,'#7A4526');g.addColorStop(1,'#5A311A');
+  lc.fillStyle='#F2EEE8';lc.beginPath();lc.arc(170,170,168,0,7);lc.fill();
+  lc.fillStyle='#DDD6CC';lc.beginPath();lc.arc(170,170,156,0,7);lc.fill();
+  lc.fillStyle=g;lc.beginPath();lc.arc(170,170,146,0,7);lc.fill();
+}
+function drawGuide(){
+  gc.clearRect(0,0,S,S);if(!gShape)return;
+  gc.strokeStyle='rgba(255,255,255,.55)';gc.lineWidth=2.5;gc.setLineDash([7,7]);gc.beginPath();
+  if(gShape===1){gc.moveTo(170,250);gc.bezierCurveTo(70,180,95,90,170,130);gc.bezierCurveTo(245,90,270,180,170,250)}
+  else if(gShape===2){gc.moveTo(170,80);gc.bezierCurveTo(250,130,250,220,170,265);gc.bezierCurveTo(90,220,90,130,170,80);gc.moveTo(170,80);gc.lineTo(170,285)}
+  else if(gShape===3){for(let r=22;r<=100;r+=26){gc.moveTo(170+r,170);gc.arc(170,170,r,0,7)}}
+  else{gc.save();gc.translate(83,109);gc.scale(.5,.5);gc.setLineDash([14,14]);gc.lineWidth=5;gc.fillStyle='rgba(255,255,255,.2)';gc.fill(LOGO);gc.stroke(LOGO);gc.restore()}
+  gc.stroke();
+}
+base();
+function pos(e){const r=L.getBoundingClientRect();return[(e.clientX-r.left)*S/r.width,(e.clientY-r.top)*S/r.height]}
+let last=null;
+L.addEventListener('pointerdown',e=>{L.setPointerCapture(e.pointerId);last=pos(e);dot(last)});
+L.addEventListener('pointermove',e=>{if(!last)return;const p=pos(e);stroke(last,p);last=p});
+['pointerup','pointercancel'].forEach(t=>L.addEventListener(t,()=>last=null));
+function clip(){lc.save();lc.beginPath();lc.arc(170,170,142,0,7);lc.clip()}
+function dot(p){clip();lc.fillStyle=color;lc.shadowColor=color;lc.shadowBlur=5;lc.beginPath();lc.arc(p[0],p[1],size/2,0,7);lc.fill();lc.restore()}
+function stroke(a,b){clip();lc.strokeStyle=color;lc.shadowColor=color;lc.shadowBlur=5;lc.lineWidth=size;lc.lineCap='round';lc.beginPath();lc.moveTo(a[0],a[1]);lc.lineTo(b[0],b[1]);lc.stroke();lc.restore()}
+COLS.forEach(([c,n],i)=>{
+  const b=document.createElement('button');b.className='sw';b.style.background=c;b.title=n;b.setAttribute('aria-label',n);
+  b.setAttribute('aria-pressed',i===0);
+  b.onclick=()=>{color=c;[...$('colors').children].forEach(x=>x.setAttribute('aria-pressed',x===b))};
+  $('colors').append(b);
+});
+$('shapes').onclick=e=>{const b=e.target.closest('button');if(!b)return;gShape=+b.dataset.g;[...$('shapes').children].forEach(x=>x.setAttribute('aria-pressed',x===b));drawGuide()};
+$('thin').onclick=()=>size=5;$('thick').onclick=()=>size=14;$('clr').onclick=base;
+
+/* ===== لعبة 2: صيد الحبوب ===== */
+const C=$('game'),gx=C.getContext('2d');
+let running=false,over=false,beans=[],cupX=170,score=0,lives=3,best=0,t0=0,spawnT=0,speed=120;
+function px(e){const r=C.getBoundingClientRect();return(e.clientX-r.left)*340/r.width}
+C.addEventListener('pointerdown',e=>{C.setPointerCapture(e.pointerId);cupX=px(e);if(!running)start()});
+C.addEventListener('pointermove',e=>{if(e.buttons||e.pointerType==='touch'||true)cupX=Math.max(36,Math.min(304,px(e)))});
+function start(){running=true;over=false;beans=[];score=0;lives=3;spawnT=0;speed=120;t0=performance.now();hud();requestAnimationFrame(loop)}
+function hud(){$('sc').textContent='النقاط: '+AR(score);$('lv').textContent='❤️'.repeat(Math.max(lives,0))||'💔';$('bs').textContent='الأفضل: '+AR(best)}
+function bean(b){
+  gx.save();gx.translate(b.x,b.y);gx.rotate(b.rot);
+  gx.fillStyle=b.bad?'#B3261E':'#6B3F22';gx.beginPath();gx.ellipse(0,0,10,14,0,0,7);gx.fill();
+  gx.strokeStyle=b.bad?'#4A0F0C':'#2B1A12';gx.lineWidth=2;gx.beginPath();gx.moveTo(0,-13);gx.bezierCurveTo(-6,-4,6,4,0,13);gx.stroke();gx.restore();
+}
+function cup(){
+  const y=392;gx.fillStyle='#F2EEE8';gx.beginPath();gx.moveTo(cupX-34,y-30);gx.lineTo(cupX+34,y-30);gx.lineTo(cupX+26,y+22);gx.lineTo(cupX-26,y+22);gx.closePath();gx.fill();
+  gx.strokeStyle='#F2EEE8';gx.lineWidth=7;gx.beginPath();gx.arc(cupX+38,y-8,13,-1.2,1.2);gx.stroke();
+  gx.fillStyle='#301A14';gx.fillRect(cupX-27,y-12,54,26);
+  gx.save();gx.translate(cupX-15.6,y-10);gx.scale(.09,.09);gx.fillStyle='#F3E6D3';gx.fill(LOGO);gx.restore();
+}
+function loop(now){
+  if(!running)return;
+  const dt=Math.min((now-(loop.p||now))/1000,.05);loop.p=now;
+  gx.clearRect(0,0,340,440);
+  spawnT-=dt;
+  if(spawnT<=0){beans.push({x:20+Math.random()*300,y:-20,rot:Math.random()*6,bad:Math.random()<.22,v:speed+Math.random()*40});spawnT=Math.max(.35,.9-score*.012)}
+  for(const b of beans){b.y+=b.v*dt;b.rot+=dt*2}
+  beans=beans.filter(b=>{
+    if(b.y>360&&b.y<412&&Math.abs(b.x-cupX)<38){
+      if(b.bad)lives--;else score++;
+      if(score>best)best=score;hud();return false}
+    if(b.y>450){if(!b.bad)lives--;hud();return false}
+    return true});
+  speed=120+score*3;
+  beans.forEach(bean);cup();
+  if(lives<=0){running=false;over=true;
+    gx.fillStyle='rgba(0,0,0,.6)';gx.fillRect(0,0,340,440);gx.fillStyle='#F3E6D3';gx.textAlign='center';
+    gx.font='900 30px Tajawal,sans-serif';gx.fillText('انتهت اللعبة',170,190);
+    gx.font='700 20px Tajawal,sans-serif';gx.fillText('نقاطك: '+AR(score),170,226);gx.fillText('المس الشاشة للعب من جديد',170,262);
+    loop.p=0;return}
+  requestAnimationFrame(loop);
+}
+(function intro(){
+  gx.save();gx.translate(118,70);gx.scale(.3,.3);gx.fillStyle='#F3E6D3';gx.fill(LOGO);gx.restore();
+  gx.fillStyle='#F3E6D3';gx.textAlign='center';gx.font='900 28px Tajawal,sans-serif';gx.fillText('صيد الحبوب',170,170);
+  gx.font='700 18px Tajawal,sans-serif';gx.fillText('المس الشاشة للبدء',170,210);
+  beans=[{x:120,y:290,rot:.5},{x:220,y:310,rot:2}];beans.forEach(bean);beans=[];cup();
+})();
+</script>
+</body>
+</html>

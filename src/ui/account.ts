@@ -9,6 +9,7 @@
  *     (هجرة 0002) — حتى ذلك الحين تظهر رسالة «قيد التجهيز».
  */
 import { $, toast } from './dom.ts';
+import { renderAdmin } from './admin.ts';
 import { hasSupabase } from '../env.ts';
 import { ensureSession } from '../net/supabase.ts';
 import {
@@ -125,19 +126,8 @@ function renderTab(): void {
   if (!box) return;
 
   if (tab === 'admin') {
-    box.innerHTML = `
-      <h3>دخول الإدارة</h3>
-      <p>مخصّص لموظفي المحل. يتم التحقق من صلاحية الموظف قبل السماح بأي إجراء.</p>
-      <div class="form-grid">
-        <div class="field"><label for="adminEmail">البريد الإلكتروني</label><input id="adminEmail" type="email" placeholder="name@cafe.com"></div>
-        <div class="field"><label for="adminPassword">كلمة المرور</label><input id="adminPassword" type="password" placeholder="••••••••"></div>
-      </div>
-      <button class="btn" id="adminLogin">دخول الإدارة</button>
-      <div class="notice" id="adminNotice"></div>
-      <p style="font-size:10px;color:var(--muted);margin-top:12px">
-        لوحة الإدارة (حالة الطلب · إدارة الأسئلة · مراجعة الفواتير) قيد البناء — يُفعَّل هذا التبويب معها.
-      </p>`;
-    $('#adminLogin')?.addEventListener('click', () => void handleAdminLogin());
+    box.innerHTML = `<div style="font-size:11px;color:var(--muted)">جارٍ التحميل…</div>`;
+    void renderAdmin();
     return;
   }
 
@@ -162,6 +152,10 @@ function renderTab(): void {
   box.innerHTML = `
     <h3>أنت تلعب كزائر</h3>
     <p>أضف بريداً وكلمة مرور لتحفظ XP وسجل مبارياتك، وتبقى نقاطك الحالية كما هي.</p>
+    <div class="field" style="margin-bottom:10px">
+      <label for="displayName">اسمك المعروض (اختياري)</label>
+      <input id="displayName" maxlength="16" placeholder="مثال: سارة">
+    </div>
     <div class="form-grid">
       <div class="field"><label for="playerEmail">البريد الإلكتروني</label><input id="playerEmail" type="email" placeholder="you@example.com"></div>
       <div class="field"><label for="playerPassword">كلمة المرور</label><input id="playerPassword" type="password" placeholder="8 أحرف على الأقل"></div>
@@ -202,6 +196,15 @@ async function handleLink(): Promise<void> {
   busy = true;
   try {
     const result = await linkAccount(email, password);
+    // حقل الاسم الاختياري (إن ظهر) يُحفظ فوراً حتى لا يبقى «لاعب» بدل «مستخدم»
+    const typed = ($<HTMLInputElement>('#displayName')?.value ?? '').trim();
+    if (typed) {
+      try {
+        await saveDisplayName(typed);
+      } catch {
+        // لا نعطّل إنشاء الحساب بسبب فشل حفظ الاسم
+      }
+    }
     await loadState();
     render();
     notice(
@@ -235,31 +238,6 @@ async function handleLogin(): Promise<void> {
     toast('تم تسجيل الدخول');
   } catch (error) {
     notice('#playerNotice', error instanceof Error ? error.message : 'تعذّر الدخول.', 'error');
-  } finally {
-    busy = false;
-  }
-}
-
-/** تبويب الإدارة: دخول ثم التحقق من صلاحية الموظف. */
-async function handleAdminLogin(): Promise<void> {
-  if (busy) return;
-  const { email, password } = credentials('#adminEmail', '#adminPassword');
-  if (!email || !password) {
-    notice('#adminNotice', 'أدخل البريد وكلمة المرور.', 'error');
-    return;
-  }
-
-  busy = true;
-  try {
-    await signIn(email, password);
-    await loadState();
-    notice(
-      '#adminNotice',
-      'تم الدخول. التحقق من صلاحية الإدارة يُفعَّل مع لوحة الإدارة (الهجرة 0002).',
-      'success',
-    );
-  } catch (error) {
-    notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الدخول.', 'error');
   } finally {
     busy = false;
   }

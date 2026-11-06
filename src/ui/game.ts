@@ -7,6 +7,7 @@ import { hideRoomBox } from './match.ts';
 import { startQuiz, stopQuiz } from '../games/quiz.ts';
 import { startRiddle } from '../games/riddle.ts';
 import { startMemory } from '../games/memory.ts';
+import { startSanaGameArt, stopSanaGameArt } from '../games/sanaGameArt.ts';
 
 function openGame(type: string): void {
   const panel = $('#gamePanel');
@@ -22,6 +23,10 @@ function openGame(type: string): void {
     startRiddle();
     return;
   }
+  if (type === 'sanaGameArt') {
+    startSanaGameArt();
+    return;
+  }
   startMemory();
 }
 
@@ -33,6 +38,7 @@ export function initGamePanel(): void {
 
   $('#closeGame')?.addEventListener('click', () => {
     stopQuiz();
+    stopSanaGameArt();
     $('#gamePanel')?.classList.remove('open');
   });
 }

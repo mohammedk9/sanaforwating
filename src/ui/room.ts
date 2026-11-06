@@ -52,7 +52,7 @@ let refreshTimer: number | undefined;
 /** فرق توقيت الخادم عن ساعة الجهاز بالمللي ثانية. */
 let clockOffset = 0;
 /** اسم اللاعب الحالي كما سيظهر داخل الغرفة. */
-let myName = 'أنت';
+let myName = 'مستخدم';
 /** XP الحالية للاعب (تُحدَّث من القاعدة بعد كل مباراة). */
 let myXp = 0;
 
@@ -132,7 +132,7 @@ function renderRoomBox(): void {
         كل لاعب يستخدم هاتفه. أنشئ غرفة وشارك الرمز، أو انضم برمز صديقك.
       </p>
       <div class="field" style="margin:10px 0 6px">
-        <input id="roomName" maxlength="14" placeholder="اسمك" value="أنت"
+        <input id="roomName" maxlength="14" placeholder="اسمك" value="مستخدم"
           style="border:1px solid #e9e0d5;background:#fffefa;border-radius:12px;padding:10px 12px;font:inherit;font-size:12px;width:100%">
       </div>
       <div class="field" style="margin-bottom:10px">
@@ -177,7 +177,7 @@ function renderRoomBox(): void {
 }
 
 async function handleCreate(): Promise<void> {
-  const name = ($<HTMLInputElement>('#roomName')?.value ?? '').trim() || 'أنت';
+  const name = ($<HTMLInputElement>('#roomName')?.value ?? '').trim() || 'مستخدم';
   try {
     await ensureSession();
     meId = await currentPlayerId();
@@ -199,7 +199,7 @@ async function handleCreate(): Promise<void> {
  * الوقت والنقاط من الخادم، لذلك تُحتسب XP والترتيب الأسبوعي بلا أي احتمال غش.
  */
 async function handleSolo(): Promise<void> {
-  const name = ($<HTMLInputElement>('#roomName')?.value ?? '').trim() || 'أنت';
+  const name = ($<HTMLInputElement>('#roomName')?.value ?? '').trim() || 'مستخدم';
   try {
     await ensureSession();
     meId = await currentPlayerId();
@@ -217,7 +217,7 @@ async function handleSolo(): Promise<void> {
 }
 
 async function handleJoin(): Promise<void> {
-  const name = ($<HTMLInputElement>('#roomName')?.value ?? '').trim() || 'أنت';
+  const name = ($<HTMLInputElement>('#roomName')?.value ?? '').trim() || 'مستخدم';
   const code = ($<HTMLInputElement>('#joinCode')?.value ?? '').trim();
   if (code.length < 4) {
     toast('أدخل رمز الغرفة كاملاً');
