@@ -1,11 +1,14 @@
-﻿/**
- * آ«ط£ظ„ط¹ط§ط¨ ط³ظژظ†ط§آ» â€” ظ„ط¹ط¨طھط§ظ† ظ„ظˆظ‚طھ ط§ظ„ط§ظ†طھط¸ط§ط± (ظ…ظ† sanagameart.html):
- * 1) ظپظ† ط§ظ„ظ„ط§طھظٹظ‡: ط±ط³ظ… ط¨ط§ظ„ط­ظ„ظٹط¨ ظ…ط¹ ط®ط·ظˆط· ط¥ط±ط´ط§ط¯ظٹط©. 2) طµظٹط¯ ط§ظ„ط­ط¨ظˆط¨: ط­ط±ظ‘ظƒ ط§ظ„ظپظ†ط¬ط§ظ† ظˆط§ظ„طھظ‚ط· ط§ظ„ط­ط¨ظˆط¨.
- * ط§ظ„ط³ظ„ظˆظƒ ظ…ط·ط§ط¨ظ‚ ظ„ظ„ط£طµظ„ظٹطŒ ظ…ط¹ طھظ†ط¸ظٹظپ ظƒط§ظ…ظ„ (RAF + ظ…ط³طھظ…ط¹ط§طھ) ط¹ظ†ط¯ ط§ظ„ط¥ط؛ظ„ط§ظ‚.
+/**
+ * «ألعاب سَنا» — صفحة منفصلة داخل لوحة اللعب:
+ * تبويب 1: ارسم على فنجانك (مع مشاركة + لايكات + حذف الأدمن)
+ * تبويب 2: اصطد الحبوب
+ * يُكتب عبر editor فقط (بدون shell) لتفادي تلف ترميز العربية.
  */
-import { $ } from '../ui/dom.ts';
+import { $, toast } from '../ui/dom.ts';
+import { isStaff } from '../net/admin.ts';
+import { publishArtwork, listArtworks, likeArtwork, deleteArtwork, artworkCardHtml, likedLocally, markLiked, type Artwork } from '../net/artwork.ts';
 
-const AR = (n: number): string => String(n).replace(/\d/g, (d) => 'ظ ظ،ظ¢ظ£ظ¤ظ¥ظ¦ظ§ظ¨ظ©'[Number(d)]);
+const AR = (n: number): string => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
 const LOGO = new Path2D(
   'M16,0H72Q88,0 88,16V140A21,21 0 0 0 130,140V16Q130,0 146,0H200Q216,0 216,16V140A22,22 0 0 0 260,140V16Q260,0 276,0H331Q347,0 347,16V222Q347,244 325,244H22Q0,244 0,222V16Q0,0 16,0Z',
 );
@@ -33,51 +36,67 @@ function injectStyle(): void {
     .sana-games .sg-sw{width:34px;height:34px;padding:0!important;border-radius:50%!important}
     .sana-games .sg-hint{text-align:center;color:var(--muted);font-size:14px;margin:10px 0 0}
     .sana-games #sgGame{display:block;width:100%;max-width:340px;margin:0 auto;aspect-ratio:340/440;border-radius:14px;background:#1F1511;touch-action:none}
-    .sana-games .sg-hud{display:flex;justify-content:space-between;font-weight:700;margin:0 auto 8px;max-width:340px}`;
+    .sana-games .sg-hud{display:flex;justify-content:space-between;font-weight:700;margin:0 auto 8px;max-width:340px}
+    .sana-games .sg-share{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px;align-items:center}
+    .sana-games .sg-share input{border:1px solid var(--line);background:#fffefa;border-radius:999px;padding:9px 13px;font:inherit;font-size:13px;min-width:160px}
+    .sana-games .sg-share button.primary{border:0;border-radius:999px;padding:10px 18px;font-weight:700;background:var(--ink);color:var(--paper);cursor:pointer}
+    .sana-games .sg-share button.ghost{border:1px solid var(--line);background:transparent;border-radius:999px;padding:10px 14px;cursor:pointer}
+    .art-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:16px}
+    .art-card{background:#fffdfa;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+    .art-img{aspect-ratio:1/1;background:#f3eee6}
+    .art-img img{width:100%;height:100%;object-fit:cover;display:block}
+    .art-meta{display:flex;justify-content:space-between;padding:8px 10px 0;font-size:12px}
+    .art-actions{display:flex;gap:6px;justify-content:space-between;padding:8px 10px 10px}
+    .art-like{border:1px solid var(--line);background:#fff;padding:6px 12px;border-radius:999px;cursor:pointer;font-size:13px}
+    .art-like.liked{background:#fbe9e7;border-color:#e8b4ae}
+    .art-del{border:1px solid #e1b9b1;background:#f8ece9;color:#914f43;padding:6px 12px;border-radius:999px;cursor:pointer;font-size:12px}
+    .art-empty{grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;padding:18px}`;
   document.head.append(style);
 }
 
-
-/** ظٹظپطھط­ ظ„ظˆط­ط© آ«ط£ظ„ط¹ط§ط¨ ط³ظژظ†ط§آ» ط¯ط§ط®ظ„ ظ„ظˆط­ط© ط§ظ„ط£ظ„ط¹ط§ط¨ ط§ظ„ط±ط¦ظٹط³ظٹط©. */
 export function startSanaGameArt(): void {
   stopSanaGameArt();
   injectStyle();
-  const title = $('#gameTitle');
-  const content = $('#gameContent');
-  if (title) title.textContent = 'ط£ظ„ط¹ط§ط¨ ط³ظژظ†ط§';
+  const content = $('#sanaGamesContent') ?? $('#gameContent');
   if (!content) return;
 
   abort = new AbortController();
   const sig = { signal: abort.signal };
 
-  content.innerHTML = `
-    <div class="sana-games">
+  content.innerHTML = `<div class="sana-games">
       <div class="sg-tabs" role="tablist">
-        <button role="tab" id="sgT1" aria-selected="true">ط§ط±ط³ظ… ط¹ظ„ظ‰ ظپظ†ط¬ط§ظ†ظƒ</button>
-        <button role="tab" id="sgT2" aria-selected="false">طµظٹط¯ ط§ظ„ط­ط¨ظˆط¨</button>
+        <button role="tab" id="sgT1" aria-selected="true">ارسم على فنجانك</button>
+        <button role="tab" id="sgT2" aria-selected="false">اصطد الحبوب</button>
       </div>
       <section id="sgP1" class="sg-stage">
         <div class="sg-wrap">
-          <canvas id="sgLatte" aria-label="ط³ط·ط­ ظپظ†ط¬ط§ظ† ظ‚ظ‡ظˆط© ظ„ظ„ط±ط³ظ…"></canvas>
+          <canvas id="sgLatte" aria-label="سطح فنجان قهوة اللاتيه"></canvas>
           <canvas id="sgGuide"></canvas>
         </div>
         <div class="sg-tools" id="sgColors"></div>
         <div class="sg-tools" id="sgShapes">
-          <button data-g="0" aria-pressed="true">ط±ط³ظ… ط­ط±</button>
-          <button data-g="1" aria-pressed="false">ظ‚ظ„ط¨</button>
-          <button data-g="2" aria-pressed="false">ظˆط±ظ‚ط©</button>
-          <button data-g="3" aria-pressed="false">ظˆط±ط¯ط©</button>
-          <button data-g="4" aria-pressed="false">ط´ط¹ط§ط± ط³ظ†ط§</button>
+          <button data-g="0" aria-pressed="true">ارسم حر</button>
+          <button data-g="1" aria-pressed="false">قلب</button>
+          <button data-g="2" aria-pressed="false">ورقة</button>
+          <button data-g="3" aria-pressed="false">دوائر</button>
+          <button data-g="4" aria-pressed="false">شعار سنا</button>
         </div>
         <div class="sg-tools">
-          <button id="sgThin">ط±ظپظٹط¹</button><button id="sgThick">ط¹ط±ظٹط¶</button><button id="sgClr">ظ…ط³ط­</button>
+          <button id="sgThin">رفيع</button><button id="sgThick">عريض</button><button id="sgClr">مسح</button>
         </div>
-        <p class="sg-hint">ط§ط³ط­ط¨ ط¨ط¥طµط¨ط¹ظƒ ط¹ظ„ظ‰ ط§ظ„ظ‚ظ‡ظˆط© ظˆط§ط±ط³ظ… ط¨ط§ظ„ط­ظ„ظٹط¨. ط§طھط¨ط¹ ط§ظ„ط®ط· ط§ظ„ط®ظپظٹظپ ظ„طھط®ط±ط¬ ط¨ط´ظƒظ„ ط£ط¬ظ…ظ„.</p>
+        <div class="sg-share">
+          <input id="sgName" maxlength="40" placeholder="اسمك (يظهر مع الرسم)">
+          <button class="primary" id="sgShare">📤 مشاركة الرسم</button>
+          <button class="ghost" id="sgDownload">⬇️ تنزيل</button>
+        </div>
+        <p class="sg-hint">اسحب بإصبعك على الفنجان للرسم. اضغط «مشاركة الرسم» ليظهر للجميع.</p>
+        <h4 style="margin:18px 0 4px;font-size:15px">🖼️ رسومات روّاد سنا</h4>
+        <div class="art-gallery" id="artGallery"><p class="art-empty">جارٍ تحميل الرسومات…</p></div>
       </section>
       <section id="sgP2" class="sg-stage" hidden>
-        <div class="sg-hud"><span id="sgSc">ط§ظ„ظ†ظ‚ط§ط·: ظ </span><span id="sgLv">â‌¤ï¸ڈâ‌¤ï¸ڈâ‌¤ï¸ڈ</span><span id="sgBs">ط§ظ„ط£ظپط¶ظ„: ظ </span></div>
-        <canvas id="sgGame" width="340" height="440" aria-label="ظ„ط¹ط¨ط© ط§ظ„طھظ‚ط§ط· ط­ط¨ظˆط¨ ط§ظ„ظ‚ظ‡ظˆط©"></canvas>
-        <p class="sg-hint">ط­ط±ظ‘ظƒ ط§ظ„ظپظ†ط¬ط§ظ† ظˆط§ظ„طھظ‚ط· ط§ظ„ط­ط¨ظˆط¨ ط§ظ„ط·ط§ط²ط¬ط©. ط§ظ„ط­ط¨ط© ط§ظ„ظ…ط­ط±ظˆظ‚ط© (ط§ظ„ط­ظ…ط±ط§ط،) طھظ†ظ‚طµ ظ‚ظ„ط¨ط§ظ‹طŒ ظˆط§ظ„ط­ط¨ط© ط§ظ„طھظٹ طھط³ظ‚ط· ط£ظٹط¶ط§ظ‹.</p>
+        <div class="sg-hud"><span id="sgSc">النقاط: ٠</span><span id="sgLv">❤️❤️❤️</span><span id="sgBs">الأفضل: ٠</span></div>
+        <canvas id="sgGame" width="340" height="440" aria-label="لعبة اصطد الحبوب"></canvas>
+        <p class="sg-hint">حرّك الفنجان باللمس. الحبوب الصحيحة تزيد نقاطك، والحمراء تنقص قلباً.</p>
       </section>
     </div>`;
 
@@ -96,9 +115,10 @@ export function startSanaGameArt(): void {
     if (n !== 2) beanRunning = false;
   };
   $('#sgT1')?.addEventListener('click', () => tab(1), sig);
-
-  /* ===== ظ„ط¹ط¨ط© 1: ظپظ† ط§ظ„ظ„ط§طھظٹظ‡ ===== */
-  const S = 340;
+  $('#sgT2')?.addEventListener('click', () => tab(2), sig);
+  /* ===== اللعبة 1: فنجان اللاتيه ===== */
+  const S = mS();
+  function mS(): number { return 340; }
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const setup = (c: HTMLCanvasElement): CanvasRenderingContext2D => {
     c.width = S * dpr;
@@ -135,15 +155,19 @@ export function startSanaGameArt(): void {
 
   const drawGuide = (): void => {
     gc.clearRect(0, 0, S, S);
-    if (!gShape) return;
-    gc.strokeStyle = 'rgba(255,255,255,.55)';
-    gc.lineWidth = 2.5;
-    gc.setLineDash([7, 7]);
+    gc.strokeStyle = 'rgba(255,244,224,.85)';
+    gc.lineWidth = 2;
+    gc.setLineDash([6, 6]);
     gc.beginPath();
-    if (gShape === 1) {
-      gc.moveTo(170, 250);
-      gc.bezierCurveTo(70, 180, 95, 90, 170, 130);
-      gc.bezierCurveTo(245, 90, 270, 180, 170, 250);
+    if (gShape === 0) {
+      gc.moveTo(90, 170);
+      gc.lineTo(250, 170);
+    } else if (gShape === 1) {
+      gc.moveTo(170, 95);
+      gc.bezierCurveTo(120, 130, 95, 160, 95, 190);
+      gc.bezierCurveTo(95, 225, 130, 245, 170, 255);
+      gc.bezierCurveTo(210, 245, 245, 225, 245, 190);
+      gc.bezierCurveTo(245, 160, 220, 130, 170, 95);
     } else if (gShape === 2) {
       gc.moveTo(170, 80);
       gc.bezierCurveTo(250, 130, 250, 220, 170, 265);
@@ -221,11 +245,10 @@ export function startSanaGameArt(): void {
   ['pointerup', 'pointercancel'].forEach((t) =>
     latte.addEventListener(t, () => (last = null), sig),
   );
-
   const COLS: [string, string][] = [
-    ['#FFF4E0', 'ط­ظ„ظٹط¨'],
-    ['#5A3420', 'ط´ظˆظƒظˆظ„ط§طھط©'],
-    ['#C98A3E', 'ظƒط±ط§ظ…ظٹظ„'],
+    ['#FFF4E0', 'حليب'],
+    ['#5A3420', 'قهوة داكنة'],
+    ['#C98A3E', 'كراميل'],
   ];
   const colorsBox = $('#sgColors');
   COLS.forEach(([c, n], i) => {
@@ -253,16 +276,87 @@ export function startSanaGameArt(): void {
   $('#sgThick')?.addEventListener('click', () => (size = 14), sig);
   $('#sgClr')?.addEventListener('click', base, sig);
 
-  /* ===== ظ„ط¹ط¨ط© 2: طµظٹط¯ ط§ظ„ط­ط¨ظˆط¨ ===== */
+  const exportPng = (): string => {
+    const tmp = document.createElement('canvas');
+    tmp.width = S;
+    tmp.height = S;
+    const ctx = tmp.getContext('2d')!;
+    ctx.drawImage(latte, 0, 0, S, S);
+    return tmp.toDataURL('image/png');
+  };
+
+  $('#sgDownload')?.addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = exportPng();
+    a.download = 'sana-cup.png';
+    a.click();
+  }, sig);
+
+  // --- معرض الرسومات ---
+  let artworks: Artwork[] = [];
+  let canDelete = false;
+
+  const renderGallery = (): void => {
+    const box = $('#artGallery');
+    if (!box) return;
+    if (!artworks.length) {
+      box.innerHTML = '<p class="art-empty">لا توجد رسومات بعد — كن أول من يشارك رسمته! ☕</p>';
+      return;
+    }
+    box.innerHTML = artworks.map((a) => artworkCardHtml(a, canDelete)).join('');
+  };
+
+  const loadGallery = async (): Promise<void> => {
+    try {
+      artworks = await listArtworks();
+      canDelete = await isStaff().catch(() => false);
+    } catch { canDelete = false; }
+    renderGallery();
+  };
+  void loadGallery();
+
+  $('#artGallery')?.addEventListener('click', (e) => {
+    const likeBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-like]');
+    const delBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-del]');
+    if (likeBtn?.dataset.like) {
+      const id = likeBtn.dataset.like;
+      if (likedLocally(id)) return;
+      likeBtn.setAttribute('disabled', 'true');
+      void likeArtwork(id).then((likes) => {
+        markLiked(id);
+        const art = artworks.find((a) => a.id === id);
+        if (art) art.likes = likes;
+        renderGallery();
+      }).catch(() => { likeBtn.removeAttribute('disabled'); });
+    } else if (delBtn?.dataset.del) {
+      const id = delBtn.dataset.del;
+      if (!window.confirm('حذف هذه الصورة نهائياً؟')) return;
+      void deleteArtwork(id).then(() => {
+        toast('تم حذف الصورة');
+        void loadGallery();
+      }).catch((err) => toast(err instanceof Error ? err.message : 'تعذّر الحذف.'));
+    }
+  }, sig);
+
+  $('#sgShare')?.addEventListener('click', async () => {
+    const name = ($<HTMLInputElement>('#sgName')?.value ?? '').trim() || 'ضيف سنا';
+    const btn = $<HTMLButtonElement>('#sgShare');
+    if (btn) { btn.disabled = true; btn.textContent = 'جارٍ النشر…'; }
+    try {
+      const item = await publishArtwork(exportPng(), name);
+      artworks = [item, ...artworks.filter((a) => a.id !== item.id)];
+      renderGallery();
+      toast('تمت مشاركة رسمتك! 🎉');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'تعذّر النشر.');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '📤 مشاركة الرسم'; }
+    }
+  }, sig);
+  /* ===== اللعبة 2: اصطد الحبوب ===== */
   const gx = game.getContext('2d')!;
-  interface Bean {
-    x: number;
-    y: number;
-    rot: number;
-    bad?: boolean;
-    v?: number;
-  }
-  let beans: Bean[] = [];
+  interface Bean { x: number; y: number; rot: number; bad?: boolean; v?: number }
+  let beans2: Bean[] = [];
   let cupX = 170;
   let score = 0;
   let lives = 3;
@@ -280,9 +374,9 @@ export function startSanaGameArt(): void {
     const sc = $('#sgSc');
     const lv = $('#sgLv');
     const bs = $('#sgBs');
-    if (sc) sc.textContent = 'ط§ظ„ظ†ظ‚ط§ط·: ' + AR(score);
-    if (lv) lv.textContent = 'â‌¤ï¸ڈ'.repeat(Math.max(lives, 0)) || 'ًں’”';
-    if (bs) bs.textContent = 'ط§ظ„ط£ظپط¶ظ„: ' + AR(best);
+    if (sc) sc.textContent = 'النقاط: ' + AR(score);
+    if (lv) lv.textContent = '❤️'.repeat(Math.max(lives, 0)) || '💔';
+    if (bs) bs.textContent = 'الأفضل: ' + AR(best);
   };
 
   const drawBean = (b: Bean): void => {
@@ -329,7 +423,7 @@ export function startSanaGameArt(): void {
 
   const start = (): void => {
     beanRunning = true;
-    beans = [];
+    beans2 = [];
     score = 0;
     lives = 3;
     spawnT = 0;
@@ -346,7 +440,7 @@ export function startSanaGameArt(): void {
     gx.clearRect(0, 0, 340, 440);
     spawnT -= dt;
     if (spawnT <= 0) {
-      beans.push({
+      beans2.push({
         x: 20 + Math.random() * 300,
         y: -20,
         rot: Math.random() * 6,
@@ -355,11 +449,11 @@ export function startSanaGameArt(): void {
       });
       spawnT = Math.max(0.35, 0.9 - score * 0.012);
     }
-    for (const b of beans) {
+    for (const b of beans2) {
       b.y += (b.v ?? speed) * dt;
       b.rot += dt * 2;
     }
-    beans = beans.filter((b) => {
+    beans2 = beans2.filter((b) => {
       if (b.y > 360 && b.y < 412 && Math.abs(b.x - cupX) < 38) {
         if (b.bad) lives--;
         else score++;
@@ -375,7 +469,7 @@ export function startSanaGameArt(): void {
       return true;
     });
     speed = 120 + score * 3;
-    beans.forEach(drawBean);
+    beans2.forEach(drawBean);
     cup();
     if (lives <= 0) {
       beanRunning = false;
@@ -384,10 +478,10 @@ export function startSanaGameArt(): void {
       gx.fillStyle = '#F3E6D3';
       gx.textAlign = 'center';
       gx.font = '900 30px Tajawal,sans-serif';
-      gx.fillText('ط§ظ†طھظ‡طھ ط§ظ„ظ„ط¹ط¨ط©', 170, 190);
+      gx.fillText('انتهت اللعبة!', 170, 190);
       gx.font = '700 20px Tajawal,sans-serif';
-      gx.fillText('ظ†ظ‚ط§ط·ظƒ: ' + AR(score), 170, 226);
-      gx.fillText('ط§ظ„ظ…ط³ ط§ظ„ط´ط§ط´ط© ظ„ظ„ط¹ط¨ ظ…ظ† ط¬ط¯ظٹط¯', 170, 262);
+      gx.fillText('نقاطك: ' + AR(score), 170, 226);
+      gx.fillText('المس الشاشة لبدء جولة جديدة', 170, 262);
       loopPrev = 0;
       return;
     }
@@ -396,7 +490,7 @@ export function startSanaGameArt(): void {
 
   game.addEventListener('pointerdown', (e) => {
     game.setPointerCapture(e.pointerId);
-    cupX = px(e);
+    cupX = Math.max(36, Math.min(304, px(e)));
     if (!beanRunning) start();
   }, sig);
   game.addEventListener('pointermove', (e) => {
@@ -412,17 +506,18 @@ export function startSanaGameArt(): void {
   gx.fillStyle = '#F3E6D3';
   gx.textAlign = 'center';
   gx.font = '900 28px Tajawal,sans-serif';
-  gx.fillText('طµظٹط¯ ط§ظ„ط­ط¨ظˆط¨', 170, 170);
+  gx.fillText('اصطد الحبوب', 170, 170);
   gx.font = '700 18px Tajawal,sans-serif';
-  gx.fillText('ط§ظ„ظ…ط³ ط§ظ„ط´ط§ط´ط© ظ„ظ„ط¨ط¯ط،', 170, 210);
-  beans = [
+  gx.fillText('المس الشاشة للبدء', 170, 210);
+  beans2 = [
     { x: 120, y: 290, rot: 0.5 },
     { x: 220, y: 310, rot: 2 },
   ];
-  beans.forEach(drawBean);
-  beans = [];
+  beans2.forEach(drawBean);
+  beans2 = [];
   cup();
 }
+
 /** ينظّف كل شيء عند إغلاق اللوحة أو فتح لعبة أخرى. */
 export function stopSanaGameArt(): void {
   beanRunning = false;
@@ -431,5 +526,6 @@ export function stopSanaGameArt(): void {
   abort?.abort();
   abort = null;
 }
+
 
 

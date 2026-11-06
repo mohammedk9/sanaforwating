@@ -29,3 +29,7 @@ export function startRiddle(): void {
       : 'حاول مرة أخرى. فكر في شيء يزداد حجماً كلما أخذت منه.';
   });
 }
+
+export function stopRiddle(): void {
+  // اللعبة بلا مؤقّتات أو طلبات — التنظيف يحدث عند تبديل المحتوى.
+}

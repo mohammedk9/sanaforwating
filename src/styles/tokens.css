@@ -9,5 +9,15 @@ body.order-ready .order-card .section-title{color:var(--green-ink)}
 body.order-ready .order-card .status{animation:sanaPulse 1.2s ease-in-out infinite}
 body.order-ready .order-card .status.ready{background:var(--green-bg);color:var(--green-ink)}
 body.order-ready .order-card .ready-message{display:block;border-color:var(--green);background:rgba(233,244,249,.8);color:var(--green-ink)}
+.menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.menu-card{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:16px;background:#fffdfa;padding:12px;cursor:pointer;text-align:right;font:inherit;color:var(--ink)}
+.menu-card:hover{border-color:#ba966e;background:#fcf7f0}
+.menu-card.selected{border-color:var(--ink);box-shadow:0 0 0 2px rgba(46,27,21,.12)}
+.menu-img{height:118px;border-radius:12px;background:#f3eee6;display:grid;place-items:center;overflow:hidden}
+.menu-img img{width:100%;height:100%;object-fit:cover}
+.menu-name{font-weight:700;font-size:13px}
+.menu-desc{font-size:11px;color:var(--muted)}
+.menu-price{font-size:12px;color:#8a684b;font-weight:700}
+
 #readyMessage{display:none;margin-top:10px;padding:10px 12px;border:1px dashed var(--green);border-radius:12px;background:var(--paper2);color:var(--green-ink);font-weight:700;font-size:13px;text-align:center}
 

@@ -5,40 +5,61 @@
 import { $, $$ } from './dom.ts';
 import { hideRoomBox } from './match.ts';
 import { startQuiz, stopQuiz } from '../games/quiz.ts';
-import { startRiddle } from '../games/riddle.ts';
-import { startMemory } from '../games/memory.ts';
+import { startRiddle, stopRiddle } from '../games/riddle.ts';
+import { startMemory, stopMemory } from '../games/memory.ts';
 import { startSanaGameArt, stopSanaGameArt } from '../games/sanaGameArt.ts';
 
-function openGame(type: string): void {
-  const panel = $('#gamePanel');
-  panel?.classList.add('open');
-  hideRoomBox();
+type GameKind = 'quiz' | 'riddle' | 'memory' | 'sanaGameArt';
+
+function stopAll(): void {
+  stopQuiz();
+  stopRiddle();
+  stopMemory();
+  stopSanaGameArt();
+}
+
+/** فتح لعبة داخل لوحة معينة (الرئيسية أو صفحة سَنا). */
+export function openGame(type: string, target: 'home' | 'sana' = 'home'): void {
+  stopAll();
+  const isSana = type === 'sanaGameArt';
+  const panel = isSana ? $('#sanaGamesPanel') : $('#gamePanel');
+  const title = isSana ? $('#sanaGamesTitle') : $('#gameTitle');
+  const content = isSana ? $('#sanaGamesContent') : $('#gameContent');
+  if (!panel || !content) return;
+  panel.classList.add('open');
+  if (target === 'home') hideRoomBox();
 
   if (type === 'quiz') {
+    if (title) title.textContent = 'تحدي المعرفة';
     startQuiz();
-    panel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     return;
   }
   if (type === 'riddle') {
+    if (title) title.textContent = 'لغز سريع';
     startRiddle();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     return;
   }
   if (type === 'sanaGameArt') {
+    if (title) title.textContent = 'ألعاب سَنا';
     startSanaGameArt();
     return;
   }
+  if (title) title.textContent = 'اختبار الذاكرة';
   startMemory();
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-/** تهيئة أزرار الألعاب. تُستدعى مرة واحدة من نقطة الدخول. */
+/** تهيئة أزرار الألعاب. */
 export function initGamePanel(): void {
   $$<HTMLButtonElement>('[data-game]').forEach((btn) => {
-    btn.addEventListener('click', () => openGame(btn.dataset.game ?? ''));
+    const kind = (btn.dataset.game ?? '') as GameKind;
+    btn.addEventListener('click', () => openGame(kind, kind === 'sanaGameArt' ? 'sana' : 'home'));
   });
 
   $('#closeGame')?.addEventListener('click', () => {
-    stopQuiz();
-    stopSanaGameArt();
+    stopAll();
     $('#gamePanel')?.classList.remove('open');
   });
 }

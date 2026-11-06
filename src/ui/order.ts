@@ -14,6 +14,7 @@ import { hasSupabase } from '../env.ts';
 import { ensureSession } from '../net/supabase.ts';
 import { listMenu, createExternalOrder, getExternalOrderStatus, fetchOrderStatus, type MenuItem } from '../net/admin.ts';
 import { saveOrder, loadSavedOrder, subscribeToOrder, playReadySound, showLocalNotification, registerServiceWorker, canSubscribe } from '../net/push.ts';
+import { openGame } from './game.ts';
 
 type OrderStatus = 'preparing' | 'ready' | 'cancelled';
 
@@ -118,19 +119,61 @@ function setStatus(status: OrderStatus): void {
   }
 }
 
-/** التبديل بين «متابعة الطلب» و«نقاط الولاء» و«الحساب». */
-export function showView(which: 'order' | 'loyalty' | 'account'): void {
+/** التبديل بين الصفحات: الرئيسية (متابعة+ألعاب)، المنيو/الطلب، ألعاب سَنا، الولاء، الحساب. */
+export function showView(which: 'order' | 'menu' | 'sana' | 'loyalty' | 'account'): void {
   const isLoyalty = which === 'loyalty';
   const isAccount = which === 'account';
   const isOrder = which === 'order';
+  const isMenu = which === 'menu';
+  const isSana = which === 'sana';
 
   $('#homeView')?.classList.toggle('hidden', !isOrder);
+  $('#menuView')?.classList.toggle('hidden', !isMenu);
+  $('#sanaGamesView')?.classList.toggle('hidden', !isSana);
   $('#loyaltyView')?.classList.toggle('active', isLoyalty);
   $('#accountView')?.classList.toggle('active', isAccount);
-  $('#navOrder')?.classList.toggle('active', isOrder);
+  $('#navOrder')?.classList.toggle('active', isOrder || isMenu || isSana);
   $('#navLoyalty')?.classList.toggle('active', isLoyalty);
   $('#navAccount')?.classList.toggle('active', isAccount);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (isMenu) {
+    // تحديده ضمن التمرير العلوي
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  if (isSana) {
+    openGame('sanaGameArt', 'sana');
+  }
+}
+
+export function showMenuView(): void {
+  showView('menu');
+  renderMenuGrid();
+}
+
+let menuItemsCache: MenuItem[] = [];
+let menuLoaded = false;
+
+/** شبكة منتجات مع صور قابلة للنقر (صفحة منفصلة). */
+export function renderMenuGrid(): void {
+  const grid = $('#menuGrid');
+  const note = $('#menuNote');
+  if (!grid) return;
+  const paint = (): void => {
+    grid.innerHTML = menuItemsCache.map((it) => `<button class="menu-card" data-menu-id="${escHtml(it.id)}" type="button">
+      <span class="menu-img">${it.imageUrl ? `<img src="${escHtml(it.imageUrl)}" alt="${escHtml(it.name)}" loading="lazy">` : '☕'}</span>
+      <span class="menu-name">${escHtml(it.name)}</span>
+      <span class="menu-desc">${escHtml(it.description || '')}</span>
+      <span class="menu-price">${it.price ? `${it.price} ر.س` : ''}${it.allergens?.length ? ` · يحتوي: ${it.allergens.join('، ')}` : ''}</span>
+    </button>`).join('');
+    if (note) note.textContent = menuItemsCache.length ? `${menuItemsCache.length} منتج — النقر يختار المنتج في النموذج.` : 'لا توجد منتجات بعد.';
+  };
+  if (menuLoaded) { paint(); return; }
+  void listMenu().then((data) => {
+    menuItemsCache = data;
+    menuLoaded = true;
+    paint();
+  });
 }
 
 /** نموذج مطالبة الولاء التجريبي (تحقق في الواجهة فقط). */
@@ -225,20 +268,33 @@ export function initOrderView(): void {
     });
   });
 
-  // التنقل
+  // التنقل بين الصفحات المنفصلة
   $('#navOrder')?.addEventListener('click', () => showView('order'));
   $('#navLoyalty')?.addEventListener('click', () => showView('loyalty'));
   $('#navAccount')?.addEventListener('click', () => showView('account'));
-  $('#sideGameBtn')?.addEventListener('click', () => {
-    showView('order');
-    $('.games-head')?.scrollIntoView({ behavior: 'smooth' });
+  $('#sideGameBtn')?.addEventListener('click', () => showView('sana'));
+  $('#goOrder')?.addEventListener('click', () => showMenuView());
+  $('#goGames')?.addEventListener('click', () => showView('sana'));
+
+  $('#menuGrid')?.addEventListener('click', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('[data-menu-id]');
+    if (!card?.dataset.menuId) return;
+    const sel = $<HTMLSelectElement>('#extItem');
+    if (!sel) return;
+    sel.value = card.dataset.menuId;
+    sel.dispatchEvent(new Event('change'));
+    $('#menuGrid')?.querySelectorAll('.menu-card').forEach((c) => c.classList.toggle('selected', c === card));
+    toast('تم اختيار المنتج — أكمل البيانات وأكّد الطلب');
+    $('#externalOrderCard')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 
   initLoyaltyForm();
+  initExternalOrderForm();
+}
 
 /** نموذج الطلب الخارجي: منيو + نوع (توصيل/استلام) + عنوان + موقع GPS + رابط خرائط. */
 function initExternalOrderForm(): void {
-  const btn = $('#placeExtOrder');
+  const btn = $('#externalOrderBtn');
   if (!btn) return;
 
   let items: MenuItem[] = [];
@@ -381,4 +437,3 @@ function escHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }
 
-}

@@ -70,3 +70,7 @@ export function startMemory(): void {
     });
   });
 }
+
+export function stopMemory(): void {
+  // بلا مؤقّتات أو طلبات — التنظيف عند تبديل المحتوى.
+}

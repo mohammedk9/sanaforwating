@@ -7,10 +7,13 @@ import { hasSupabase } from '../env.ts';
 import { signIn, signOut } from '../net/account.ts';
 import { isStaff, listQuestions, setOrderStatus, upsertQuestion, deleteQuestion, setQuestionActive, listAdminMenu, upsertMenuItem, deleteMenuItem, listExternalOrders, setExternalStatus, esc, type OrderStatus, type MenuItem, type ExternalOrder } from '../net/admin.ts';
 
+import { listArtworks, deleteArtwork, artworkCardHtml } from '../net/artwork.ts';
+
 let questions: Awaited<ReturnType<typeof listQuestions>> = [];
 let menuItems: MenuItem[] = [];
 let extOrders: ExternalOrder[] = [];
-let section: 'order' | 'questions' | 'menu' | 'extOrders' = 'order';
+let artworksCache: Awaited<ReturnType<typeof listArtworks>> = []; // للعرض
+let section: 'order' | 'questions' | 'menu' | 'extOrders' | 'artworks' = 'order';
 
 function notice(id: string, msg: string, kind: 'success' | 'error' = 'error'): void {
   const el = $(id);
@@ -49,12 +52,14 @@ export async function renderAdmin(): Promise<void> {
   questions = await listQuestions().catch(() => []);
   menuItems = await listAdminMenu().catch(() => []);
   extOrders = await listExternalOrders().catch(() => []);
+  artworksCache = await listArtworks().catch(() => []);
   box.innerHTML = `
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       <button class="btn ${section === 'order' ? '' : 'light'}" id="secOrder" style="flex:1">حالة الطلب</button>
       <button class="btn ${section === 'questions' ? '' : 'light'}" id="secQuestions" style="flex:1">الأسئلة (${questions.length})</button>
       <button class="btn ${section === 'menu' ? '' : 'light'}" id="secMenu" style="flex:1">المنيو (${menuItems.length})</button>
       <button class="btn ${section === 'extOrders' ? '' : 'light'}" id="secExtOrders" style="flex:1">طلبات خارجية (${extOrders.length})</button>
+      <button class="btn ${section === 'artworks' ? '' : 'light'}" id="secArtworks" style="flex:1">الرسومات (${artworksCache.length})</button>
       <button class="btn outline" id="adminLogout">خروج</button>
     </div>
     <div id="adminBody"></div>`;
@@ -75,6 +80,10 @@ export async function renderAdmin(): Promise<void> {
     section = 'extOrders';
     void renderAdmin();
   });
+  $('#secArtworks')?.addEventListener('click', () => {
+    section = 'artworks';
+    void renderAdmin();
+  });
   $('#adminLogout')?.addEventListener('click', () => {
     void signOut().then(() => void renderAdmin());
     toast('تم تسجيل الخروج');
@@ -83,7 +92,31 @@ export async function renderAdmin(): Promise<void> {
   if (section === 'order') renderOrderSection();
   else if (section === 'menu') renderMenuSection();
   else if (section === 'extOrders') renderExtOrdersSection();
+  else if (section === 'artworks') renderArtworksSection();
   else renderQuestionsSection();
+}
+
+function renderArtworksSection(): void {
+  const body = $('#adminBody');
+  if (!body) return;
+  const rows = artworksCache.map((a) => artworkCardHtml(a, true)).join('');
+  body.innerHTML = `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${artworksCache.length} رسمة — زر الحذف متاح لك كأدمن.</div>
+    <div class="art-gallery">${rows || '<p class="art-empty">لا توجد رسومات.</p>'}</div>
+    <div class="notice" id="adminNotice"></div>`;
+  body.querySelectorAll<HTMLElement>('[data-del]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const id = b.dataset.del;
+      if (!id || !window.confirm('حذف هذه الصورة نهائياً؟')) return;
+      try {
+        await deleteArtwork(id);
+        toast('تم حذف الصورة');
+        await renderAdmin();
+      } catch (error) {
+        notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الحذف.');
+      }
+    });
+  });
 }
 
 async function handleAdminLogin(): Promise<void> {

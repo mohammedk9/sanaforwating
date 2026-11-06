@@ -21,8 +21,6 @@
       <div class="brand-mark"><img src="/assets/sana-logo.svg" alt="شعار سنا"></div>
     </div>
     <div class="top-pill"><span class="dot"></span> لا تحتاج إلى تحميل تطبيق</div>
-  </header>
-
   <div class="layout">
     <main class="main">
       <section class="home-view" id="homeView">
@@ -51,6 +49,64 @@
             <div class="step"><div class="step-icon">✦</div><strong>جاهز للاستلام</strong><small>سنخبرك عند اكتماله</small></div>
           </div>
           <div class="ready-message" id="readyMessage">🎉 طلبك جاهز! توجه إلى نقطة الاستلام، نتمنى لك تجربة سعيدة.</div>
+        </section>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+          <button class="btn" id="goOrder" style="flex:1;min-width:160px">🛵 اطلب الآن (صفحة منفصلة)</button>
+          <button class="btn light" id="goGames" style="flex:1;min-width:160px">🎮 ألعاب سَنا (صفحة منفصلة)</button>
+        </div>
+
+        <section class="games-grid">
+          <article class="game-card">
+            <div class="game-art art-quiz">🧠</div><h3>تحدي المعرفة</h3><p>أسئلة عامة، سرعة بديهة ونقاط.</p><div class="game-meta"><span>فردي أو مع الأصدقاء</span><button class="text-btn" data-game="quiz">ابدأ التحدي ←</button></div>
+          </article>
+          <article class="game-card">
+            <div class="game-art art-riddle">💡</div><h3>لغز سريع</h3><p>فكّر جيداً وحاول الوصول للحل.</p><div class="game-meta"><span>دقيقة واحدة</span><button class="text-btn" data-game="riddle">جرّب الآن ←</button></div>
+          </article>
+          <article class="game-card">
+            <div class="game-art art-memory">🃏</div><h3>اختبار الذاكرة</h3><p>هل تتذكر أماكن البطاقات المتشابهة؟</p><div class="game-meta"><span>تحدٍ فردي</span><button class="text-btn" data-game="memory">العب الآن ←</button></div>
+          </article>
+          <article class="game-card">
+            <div class="game-art art-lattee">☕</div><h3>ألعاب سَنا</h3><p>ارسم على فنجانك أو اصطد الحبوب بينما يجهز طلبك.</p><div class="game-meta"><span>لعبتان خفيفتان</span><button class="text-btn" data-game="sanaGameArt">العب الآن ←</button></div>
+          </article>
+        </section>
+
+        <section class="game-panel" id="gamePanel">
+          <div class="game-panel-head">
+            <h3 id="gameTitle">اللعبة</h3>
+            <button class="close-btn" id="closeGame" aria-label="إغلاق">✕</button>
+          </div>
+          <div id="gameContent"></div>
+        </section>
+
+        <section class="room-box" id="roomBox">
+          <strong>غرفة الأصدقاء</strong>
+          <div class="room-code" id="roomCode">------</div>
+          <form class="lookup" id="roomForm" style="margin:10px 0">
+            <div class="field"><label for="roomName">اسمك في الغرفة</label><input id="roomName" maxlength="16" placeholder="مثال: سارة"></div>
+            <button class="btn" type="submit">إنشاء غرفة</button>
+          </form>
+          <form class="lookup" id="joinForm" style="margin:0 0 10px">
+            <div class="field"><label for="joinCode">رمز الغرفة</label><input id="joinCode" maxlength="6" style="text-transform:uppercase" placeholder="ABC123" dir="ltr"></div>
+            <button class="btn light" type="submit">انضمام</button>
+          </form>
+          <div class="room-actions"><button class="btn light" id="copyRoom">نسخ الرمز</button><button class="btn outline" id="simulateJoin">إضافة لاعب تجريبي</button></div>
+          <div id="roomPlayers" style="text-align:center;font-size:10px;color:#8c7a6b;margin-top:10px">أنت · بانتظار الأصدقاء</div>
+        </section>
+
+        <details class="demo-tools">
+          <summary>أدوات العرض التجريبي — محاكاة حالة الطلب</summary>
+          <div class="demo-buttons"><button data-status="preparing">الطلب قيد التحضير</button><button data-status="ready">اجعل الطلب جاهزاً</button><button data-status="reset">إعادة الحالة</button><button id="showRoom">تجربة غرفة أصدقاء</button></div>
+          <div class="hint">هذه الأدوات للعرض فقط، ولن تظهر في نظام الموظف الحقيقي.</div>
+        </details>
+      </section>
+
+      <section class="home-view hidden" id="menuView">
+        <div class="hero"><div><h1>اطلب الآن.</h1><p>اختر منتجاتك من المنيو وأرسل طلبك (توصيل أو استلام).</p></div><div class="store-label">☕ منيو سَنا</div></div>
+        <section class="card">
+          <div class="section-title" style="margin-bottom:12px"><span class="mini-icon">◉</span> اختر منتجاتك</div>
+          <div id="menuGrid" class="menu-grid"></div>
+          <div id="menuNote" style="font-size:11px;color:var(--muted);margin-top:10px">جارٍ تحميل المنيو…</div>
         </section>
 
         <section class="card order-card" id="externalOrderCard" style="margin-top:16px">
@@ -94,45 +150,16 @@
             <input id="extNotes" placeholder="مثال: بدون سكر، عندي حساسية من المكسرات">
           </div>
 
-          <button class="btn" id="placeExtOrder" style="margin-top:12px">تأكيد الطلب</button>
+          <button class="btn" id="externalOrderBtn" style="width:100%;margin-top:12px">تأكيد الطلب</button>
           <div class="notice" id="extNotice"></div>
-          <p style="font-size:10px;color:var(--muted);margin-top:8px">بعد التأكيد ستحصل على رقم طلب خارجي — تابع حالته برقم الجوال من «متابعة طلبك».</p>
+          <p style="font-size:10px;color:var(--muted);margin-top:8px">بعد التأكيد ستحصل على رقم طلب خارجي — تابع حالته من «متابعة طلبك».</p>
         </section>
-
-        <div class="games-head"><div><h2>إلى أن يجهز طلبك…</h2><p>اختر تحدياً وامضِ وقتك بشيء ممتع.</p></div><span class="tiny-label">✦ وقت ممتع</span></div>
-        <section class="games-grid">
-          <article class="game-card">
-            <div class="game-art art-quiz">🧠</div><h3>تحدي المعرفة</h3><p>أسئلة عامة، سرعة بديهة ونقاط.</p><div class="game-meta"><span>فردي أو مع الأصدقاء</span><button class="text-btn" data-game="quiz">ابدأ التحدي ←</button></div>
-          </article>
-          <article class="game-card">
-            <div class="game-art art-riddle">💡</div><h3>لغز سريع</h3><p>فكّر جيداً وحاول الوصول للحل.</p><div class="game-meta"><span>دقيقة واحدة</span><button class="text-btn" data-game="riddle">جرّب الآن ←</button></div>
-          </article>
-          <article class="game-card">
-            <div class="game-art art-memory">🃏</div><h3>اختبار الذاكرة</h3><p>هل تتذكر أماكن البطاقات المتشابهة؟</p><div class="game-meta"><span>تحدٍ فردي</span><button class="text-btn" data-game="memory">العب الآن ←</button></div>
-          </article>
-          <article class="game-card">
-            <div class="game-art art-lattee">☕</div><h3>ألعاب سَنا</h3><p>ارسم على فنجانك أو اصطد الحبوب بينما يجهز طلبك.</p><div class="game-meta"><span>لعبتان خفيفتان</span><button class="text-btn" data-game="sanaGameArt">العب الآن ←</button></div>
-          </article>
+      <section class="home-view hidden" id="sanaGamesView">
+        <div class="hero"><div><h1>ألعاب سَنا.</h1><p>ارسم على فنجانك وشارك رسمتك، أو اصطد الحبوب بينما يجهز طلبك.</p></div><div class="store-label">🎮 صفحة منفصلة</div></div>
+        <section class="game-panel open" id="sanaGamesPanel" style="margin-top:0">
+          <div class="game-panel-head"><h3 id="sanaGamesTitle">ألعاب سَنا</h3></div>
+          <div id="sanaGamesContent"></div>
         </section>
-
-        <section class="game-panel" id="gamePanel">
-          <div class="game-panel-head"><h3 id="gameTitle">تحدي المعرفة</h3><button class="close-btn" id="closeGame" aria-label="إغلاق">×</button></div>
-          <div id="gameContent"></div>
-        </section>
-
-        <section class="room-box" id="roomBox">
-          <div style="font-size:12px;font-weight:700;text-align:center">غرفة الأصدقاء التجريبية</div>
-          <p style="font-size:11px;color:var(--muted);text-align:center;margin:5px 0">شارك الرمز مع أصدقائك لينضموا إلى التحدي من هواتفهم.</p>
-          <div class="room-code" id="roomCode">S8N42</div>
-          <div class="room-actions"><button class="btn light" id="copyRoom">نسخ الرمز</button><button class="btn outline" id="simulateJoin">إضافة لاعب تجريبي</button></div>
-          <div id="roomPlayers" style="text-align:center;font-size:10px;color:#8c7a6b;margin-top:10px">أنت · بانتظار الأصدقاء</div>
-        </section>
-
-        <details class="demo-tools">
-          <summary>أدوات العرض التجريبي — محاكاة حالة الطلب</summary>
-          <div class="demo-buttons"><button data-status="preparing">الطلب قيد التحضير</button><button data-status="ready">اجعل الطلب جاهزاً</button><button data-status="reset">إعادة الحالة</button><button id="showRoom">تجربة غرفة أصدقاء</button></div>
-          <div class="hint">هذه الأدوات للعرض فقط، ولن تظهر في نظام الموظف الحقيقي.</div>
-        </details>
       </section>
 
       <section class="loyalty-view" id="loyaltyView">
