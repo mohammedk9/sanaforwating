@@ -45,7 +45,7 @@ async function loadState(): Promise<void> {
 
 /** المحتوى المتغيّر أعلى الصفحة (الهيرو + النقاط). */
 function headerMarkup(): string {
-  const name = profile?.displayName || (account?.isAnonymous ? 'زائر' : 'لاعب');
+  const name = profile?.displayName || (account?.isAnonymous ? 'زائر' : 'مستخدم');
   const xp = profile?.xp ?? 0;
   const email = account?.email ?? '';
   const isGuest = !account || account.isAnonymous;
@@ -94,14 +94,14 @@ function render(): void {
     ${headerMarkup()}
     <div class="card loyalty-form" style="margin-bottom:16px">
       <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button class="btn ${tab === 'player' ? '' : 'light'}" id="tabPlayer" style="flex:1">لاعب</button>
+        <button class="btn ${tab === 'player' ? '' : 'light'}" id="tabPlayer" style="flex:1">مستخدم</button>
         <button class="btn ${tab === 'admin' ? '' : 'light'}" id="tabAdmin" style="flex:1">الإدارة</button>
       </div>
       <div id="tabContent"></div>
     </div>
     <div class="card loyalty-form">
       <h3>الترتيب الأسبوعي</h3>
-      <p>أفضل اللاعبين بنقاط هذا الأسبوع.</p>
+      <p>أفضل المستخدمين بنقاط هذا الأسبوع.</p>
       <div id="leaderboard"><div style="font-size:11px;color:var(--muted)">جارٍ التحميل…</div></div>
     </div>`;
 

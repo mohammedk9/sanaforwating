@@ -32,6 +32,7 @@ import {
   type RoomSession,
 } from '../net/rooms.ts';
 import { subscribeRoom, type RoomSubscription } from '../net/channel.ts';
+import { loadProfile } from '../net/account.ts';
 
 const MAX_PLAYERS = 8;
 
@@ -50,15 +51,47 @@ let advancedFor: string | null = null;
 let refreshTimer: number | undefined;
 /** فرق توقيت الخادم عن ساعة الجهاز بالمللي ثانية. */
 let clockOffset = 0;
+/** اسم اللاعب الحالي كما سيظهر داخل الغرفة. */
+let myName = 'أنت';
+/** XP الحالية للاعب (تُحدَّث من القاعدة بعد كل مباراة). */
+let myXp = 0;
 
 /** الوقت الحالي بمرجع الخادم (يصمد أمام ساعة هاتف غير مضبوطة). */
 function serverNow(): number {
   return Date.now() + clockOffset;
 }
 
+/**
+ * يحدّث الاسم و XP من القاعدة.
+ * يُستدعى عند الدخول وبعد نهاية كل مباراة (لأن XP تُمنح على الخادم).
+ */
+async function refreshAccount(): Promise<void> {
+  try {
+    const profile = await loadProfile();
+    if (!profile) return;
+    myName = profile.displayName || myName;
+    myXp = profile.xp;
+  } catch {
+    // لا نعطّل اللعب بسبب فشل قراءة الملف الشخصي
+  }
+}
+
+/** الاسم الحقيقي لمضيف الغرفة (من قائمة اللاعبين، وأولهم هو المضيف). */
+function hostDisplayName(): string {
+  const host = players[0];
+  if (!host) return 'المضيف';
+  return host.playerId === meId ? myName : host.displayName;
+}
+
 /** اسم اللاعب من المعرّف. */
 function nameOf(playerId: string): string {
-  if (playerId === meId) return 'أنت';
+  if (playerId === meId) return myName;
+  return players.find((player) => player.playerId === playerId)?.displayName ?? 'لاعب';
+}
+
+/** اسم اللاعب للعرض في الشرائح والقوائم. */
+function labelOf(playerId: string): string {
+  if (playerId === meId) return `${myName} (أنت)`;
   return players.find((player) => player.playerId === playerId)?.displayName ?? 'لاعب';
 }
 
@@ -130,7 +163,7 @@ function renderRoomBox(): void {
       <button class="btn outline" id="leaveRoom">خروج</button>
     </div>
     <div id="roomPlayers" style="text-align:center;font-size:11px;color:#8c7a6b;margin-top:10px">
-      ${players.length} / ${MAX_PLAYERS} · ${players.map((player) => (player.playerId === meId ? 'أنت' : player.displayName)).join(' · ')}
+      ${players.length} / ${MAX_PLAYERS} · ${players.map((player) => labelOf(player.playerId)).join(' · ')}
     </div>`;
 
   $('#copyRoom')?.addEventListener('click', () => {
@@ -144,14 +177,16 @@ function renderRoomBox(): void {
 }
 
 async function handleCreate(): Promise<void> {
-  const name = ($<HTMLInputElement>('#roomName')?.value ?? 'أنت').trim();
+  const name = ($<HTMLInputElement>('#roomName')?.value ?? '').trim() || 'أنت';
   try {
     await ensureSession();
     meId = await currentPlayerId();
     session = await createRoom(MAX_PLAYERS);
     isHostFlag = true;
-    // نضبط اسم المضيف حتى يظهر اسمه للجميع بدل «المضيف»
+    // نضبط اسم المضيف حتى يظهر اسمه للجميع بدل الاسم الافتراضي
     await setMyName(session.code, name);
+    myName = name;
+    await refreshAccount();
     await refreshPlayers();
     await openLobby(name);
   } catch (error) {
@@ -164,12 +199,14 @@ async function handleCreate(): Promise<void> {
  * الوقت والنقاط من الخادم، لذلك تُحتسب XP والترتيب الأسبوعي بلا أي احتمال غش.
  */
 async function handleSolo(): Promise<void> {
-  const name = ($<HTMLInputElement>('#roomName')?.value ?? 'أنت').trim();
+  const name = ($<HTMLInputElement>('#roomName')?.value ?? '').trim() || 'أنت';
   try {
     await ensureSession();
     meId = await currentPlayerId();
     session = await startSoloMatch(name);
     isHostFlag = true;
+    myName = name;
+    await refreshAccount();
     players = await listPlayers(session.roomId);
     openPanel('تحدي المعرفة — لعبة فردية');
     await connectChannel();
@@ -180,7 +217,7 @@ async function handleSolo(): Promise<void> {
 }
 
 async function handleJoin(): Promise<void> {
-  const name = ($<HTMLInputElement>('#roomName')?.value ?? 'أنت').trim();
+  const name = ($<HTMLInputElement>('#roomName')?.value ?? '').trim() || 'أنت';
   const code = ($<HTMLInputElement>('#joinCode')?.value ?? '').trim();
   if (code.length < 4) {
     toast('أدخل رمز الغرفة كاملاً');
@@ -191,6 +228,8 @@ async function handleJoin(): Promise<void> {
     meId = await currentPlayerId();
     session = await joinRoom(code, name);
     isHostFlag = false;
+    myName = name;
+    await refreshAccount();
     await refreshPlayers();
     await openLobby(name);
   } catch (error) {
@@ -232,11 +271,17 @@ function renderLobby(hostName: string): void {
               player.playerId === meId ? '#e2d3c2' : '#e9e0d5'
             };background:${player.playerId === meId ? '#f1e8dc' : '#fffdfa'};font-weight:${
               player.playerId === meId ? '700' : '500'
-            }">${player.playerId === meId ? 'أنت' : player.displayName}</span>`,
+            }">${labelOf(player.playerId)}</span>`,
         )
         .join('')}
     </div>
     <div style="text-align:center;font-size:10px;color:#9a8878">${players.length} من ${MAX_PLAYERS} لاعبين</div>
+    <div style="text-align:center;margin-top:10px">
+      <span style="display:inline-flex;align-items:baseline;gap:7px;background:#e9f4f9;border-radius:999px;padding:5px 12px">
+        <span style="font-size:10px;color:#2a7191">رصيدك</span>
+        <strong style="font-size:13px;color:#2a7191">${myXp} XP</strong>
+      </span>
+    </div>
     <div class="game-actions" style="justify-content:center;margin-top:16px">
       ${
         isHostFlag
@@ -294,7 +339,7 @@ function refresh(): Promise<void> {
       phaseEndsAt = state.phaseEndsAt;
 
       if (state.phase === 'lobby') {
-        renderLobby('المضيف');
+        renderLobby(hostDisplayName());
         startClock();
         resolve();
         return;
@@ -306,6 +351,11 @@ function refresh(): Promise<void> {
       answers = current.matchQuestionId
         ? await listQuestionAnswers(current.matchQuestionId)
         : await listMatchAnswers(session.matchId);
+
+      // عند نهاية المباراة: الخادم منح XP للتو ⇒ نعيد قراءتها لتظهر في الواجهة
+      if (state.phase === 'match_end') {
+        await refreshAccount();
+      }
 
       renderMatch();
       startClock();
@@ -423,6 +473,10 @@ function renderMatch(): void {
       <div style="text-align:center;padding:8px 2px 0">
         <div style="font-size:32px">🏆</div>
         <h3 style="margin:6px 0 10px">انتهت المباراة</h3>
+        <div style="display:inline-flex;align-items:baseline;gap:8px;background:#e9f4f9;border-radius:999px;padding:7px 15px;margin-bottom:12px">
+          <span style="font-size:10px;color:#2a7191">رصيدك</span>
+          <strong style="font-size:18px;color:#2a7191">${myXp} XP</strong>
+        </div>
       </div>
       ${scoreRows}
       <div class="game-actions" style="justify-content:center;margin-top:14px">
@@ -469,7 +523,7 @@ function renderMatch(): void {
             return `<span style="font-size:10px;padding:4px 9px;border-radius:999px;border:1px solid ${
               done ? '#cfe6f2' : '#e9e0d5'
             };background:${done ? '#e9f4f9' : '#fffdfa'};color:${done ? '#2a7191' : '#8b8178'}">${
-              player.playerId === meId ? 'أنت' : player.displayName
+              labelOf(player.playerId)
             }${done ? ' ✓' : ''}</span>`;
           })
           .join('');
