@@ -26,3 +26,8 @@ export function toast(message: string): void {
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => el.classList.remove('show'), 2600);
 }
+
+/** هل يعمل داخل تطبيق مثبت (standalone)؟ */
+export function isStandalone(): boolean {
+  return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+}

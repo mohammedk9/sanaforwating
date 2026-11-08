@@ -13,7 +13,7 @@ import { $, $$, toast } from './dom.ts';
 import { hasSupabase } from '../env.ts';
 import { ensureSession } from '../net/supabase.ts';
 import { listMenu, createExternalOrder, getExternalOrderStatus, fetchOrderStatus, type MenuItem } from '../net/admin.ts';
-import { saveOrder, loadSavedOrder, subscribeToOrder, playReadySound, showLocalNotification, registerServiceWorker, canSubscribe } from '../net/push.ts';
+import { saveOrder, loadSavedOrder, subscribeToOrder, playReadySound, showLocalNotification, registerServiceWorker, canSubscribe, pushStatus } from '../net/push.ts';
 import { openGame } from './game.ts';
 
 type OrderStatus = 'preparing' | 'ready' | 'cancelled';
@@ -132,17 +132,15 @@ export function showView(which: 'order' | 'menu' | 'sana' | 'loyalty' | 'account
   $('#sanaGamesView')?.classList.toggle('hidden', !isSana);
   $('#loyaltyView')?.classList.toggle('active', isLoyalty);
   $('#accountView')?.classList.toggle('active', isAccount);
-  $('#navOrder')?.classList.toggle('active', isOrder || isMenu || isSana);
+  $('#navOrder')?.classList.toggle('active', isOrder);
+  $('#navMenu')?.classList.toggle('active', isMenu);
+  $('#navSanaGames')?.classList.toggle('active', isSana);
   $('#navLoyalty')?.classList.toggle('active', isLoyalty);
   $('#navAccount')?.classList.toggle('active', isAccount);
-  if (isMenu) {
-    // تحديده ضمن التمرير العلوي
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  } else {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   if (isSana) {
-    openGame('sanaGameArt', 'sana');
+    // ننتظر إظهار الصفحة حتى يتوفر العنصر ثم نرسم اللعبة
+    requestAnimationFrame(() => openGame('sanaGameArt', 'sana'));
   }
 }
 
@@ -161,7 +159,7 @@ export function renderMenuGrid(): void {
   if (!grid) return;
   const paint = (): void => {
     grid.innerHTML = menuItemsCache.map((it) => `<button class="menu-card" data-menu-id="${escHtml(it.id)}" type="button">
-      <span class="menu-img">${it.imageUrl ? `<img src="${escHtml(it.imageUrl)}" alt="${escHtml(it.name)}" loading="lazy">` : '☕'}</span>
+      <span class="menu-img">${it.imageUrl ? `<img src="${escHtml(it.imageUrl)}" alt="${escHtml(it.name)}" loading="lazy" decoding="async" width="170" height="118">` : '☕'}</span>
       <span class="menu-name">${escHtml(it.name)}</span>
       <span class="menu-desc">${escHtml(it.description || '')}</span>
       <span class="menu-price">${it.price ? `${it.price} ر.س` : ''}${it.allergens?.length ? ` · يحتوي: ${it.allergens.join('، ')}` : ''}</span>
@@ -216,7 +214,45 @@ export function initOrderView(): void {
     if (savedInput) savedInput.value = saved.number;
     if (saved.status === 'ready') markReady(saved.number);
     else startPolling(saved.number);
+    renderNotifyButton(); // زر «تفعيل إشعارات الجاهزية»
   }
+
+  // زر «تفعيل إشعارات الجاهزية» — يظهر مرة واحدة عند توفر رقم طلب
+  function renderNotifyButton(): void {
+    let btn = $<HTMLButtonElement>('#notifyEnableBtn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'notifyEnableBtn';
+      btn.className = 'btn light';
+      btn.style.marginTop = '10px';
+      btn.style.width = '100%';
+      const card = $('#orderCard');
+      card?.appendChild(btn);
+    }
+    const st = pushStatus();
+    if (st.subscribed) {
+      btn.textContent = '🔔 الإشعارات مفعّلة (جاهزية الطلب)';
+      btn.disabled = true;
+      btn.style.opacity = '.7';
+    } else if (!st.supported) {
+      btn.textContent = '🔔 الإشعارات المحلية: سنرن ونظهر Toast عند الجاهزية (بدون VAPID)';
+      btn.disabled = true;
+    } else {
+      btn.textContent = '🔔 تفعيل إشعارات «جاهزية الطلب»';
+      btn.disabled = false;
+    }
+    btn.onclick = async () => {
+      const num = $('#orderNumber')?.textContent?.trim() ?? '';
+      if (!num) return;
+      btn!.textContent = 'جارٍ التفعيل…';
+      const ok = await subscribeToOrder(num, loadSavedOrder()?.phone ?? '');
+      renderNotifyButton();
+      toast(ok ? 'سيصلك إشعار عند الجاهزية حتى بعد إغلاق الصفحة ✅' : 'لم يُفعَّل الإشعار — الحالة تُحدَّث كل 15 ثانية');
+    };
+  }
+  // عرض/تفعيل زر عند العرض الأولي وحالته
+  window.addEventListener('load', () => renderNotifyButton());
+
 
   // عرض حالة الطلب بعد إدخال رقم الطلب (حقيقية إن كانت Supabase مضبوطة)
   $('#lookupBtn')?.addEventListener('click', async () => {
@@ -268,8 +304,10 @@ export function initOrderView(): void {
     });
   });
 
-  // التنقل بين الصفحات المنفصلة
+  // التنقل بين الصفحات المنفصلة — القائمة الجانبية أولاً
   $('#navOrder')?.addEventListener('click', () => showView('order'));
+  $('#navMenu')?.addEventListener('click', () => showMenuView());
+  $('#navSanaGames')?.addEventListener('click', () => showView('sana'));
   $('#navLoyalty')?.addEventListener('click', () => showView('loyalty'));
   $('#navAccount')?.addEventListener('click', () => showView('account'));
   $('#sideGameBtn')?.addEventListener('click', () => showView('sana'));

@@ -7,6 +7,7 @@
 import { $, toast } from '../ui/dom.ts';
 import { isStaff } from '../net/admin.ts';
 import { publishArtwork, listArtworks, likeArtwork, deleteArtwork, artworkCardHtml, likedLocally, markLiked, type Artwork } from '../net/artwork.ts';
+import { startBaristaRush, stopBaristaRush, injectBaristaStyles } from './baristaRush.ts';
 
 const AR = (n: number): string => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
 const LOGO = new Path2D(
@@ -67,11 +68,12 @@ export function startSanaGameArt(): void {
       <div class="sg-tabs" role="tablist">
         <button role="tab" id="sgT1" aria-selected="true">ارسم على فنجانك</button>
         <button role="tab" id="sgT2" aria-selected="false">اصطد الحبوب</button>
+        <button role="tab" id="sgT3" aria-selected="false">ورديّة الباريستا</button>
       </div>
       <section id="sgP1" class="sg-stage">
         <div class="sg-wrap">
-          <canvas id="sgLatte" aria-label="سطح فنجان قهوة اللاتيه"></canvas>
-          <canvas id="sgGuide"></canvas>
+          <canvas id="sgLatte" width="340" height="340" aria-label="سطح فنجان قهوة اللاتيه"></canvas>
+          <canvas id="sgGuide" width="340" height="340"></canvas>
         </div>
         <div class="sg-tools" id="sgColors"></div>
         <div class="sg-tools" id="sgShapes">
@@ -98,6 +100,9 @@ export function startSanaGameArt(): void {
         <canvas id="sgGame" width="340" height="440" aria-label="لعبة اصطد الحبوب"></canvas>
         <p class="sg-hint">حرّك الفنجان باللمس. الحبوب الصحيحة تزيد نقاطك، والحمراء تنقص قلباً.</p>
       </section>
+      <section id="sgP3" class="sg-stage" hidden>
+        <div id="sgBarista"></div>
+      </section>
     </div>`;
 
   const latte = $<HTMLCanvasElement>('#sgLatte');
@@ -105,17 +110,36 @@ export function startSanaGameArt(): void {
   const game = $<HTMLCanvasElement>('#sgGame');
   if (!latte || !guide || !game) return;
 
-  const tab = (n: 1 | 2): void => {
+  injectBaristaStyles();
+  const baristaBox = $<HTMLElement>('#sgBarista');
+  let baristaActive = false;
+  const setBarista = (on: boolean): void => {
+    if (!baristaBox) return;
+    if (on && !baristaActive) {
+      baristaActive = true;
+      startBaristaRush(baristaBox, abort?.signal);
+    } else if (!on && baristaActive) {
+      baristaActive = false;
+      stopBaristaRush();
+    }
+  };
+
+  const tab = (n: 1 | 2 | 3): void => {
     const p1 = $<HTMLElement>('#sgP1');
     const p2 = $<HTMLElement>('#sgP2');
+    const p3 = $<HTMLElement>('#sgP3');
     if (p1) p1.hidden = n !== 1;
     if (p2) p2.hidden = n !== 2;
+    if (p3) p3.hidden = n !== 3;
     $('#sgT1')?.setAttribute('aria-selected', String(n === 1));
     $('#sgT2')?.setAttribute('aria-selected', String(n === 2));
+    $('#sgT3')?.setAttribute('aria-selected', String(n === 3));
     if (n !== 2) beanRunning = false;
+    setBarista(n === 3);
   };
   $('#sgT1')?.addEventListener('click', () => tab(1), sig);
   $('#sgT2')?.addEventListener('click', () => tab(2), sig);
+  $('#sgT3')?.addEventListener('click', () => tab(3), sig);
   /* ===== اللعبة 1: فنجان اللاتيه ===== */
   const S = mS();
   function mS(): number { return 340; }
@@ -520,6 +544,7 @@ export function startSanaGameArt(): void {
 
 /** ينظّف كل شيء عند إغلاق اللوحة أو فتح لعبة أخرى. */
 export function stopSanaGameArt(): void {
+  stopBaristaRush();
   beanRunning = false;
   cancelAnimationFrame(raf);
   raf = 0;

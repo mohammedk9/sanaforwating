@@ -24,9 +24,15 @@ export function openGame(type: string, target: 'home' | 'sana' = 'home'): void {
   const isSana = type === 'sanaGameArt';
   const panel = isSana ? $('#sanaGamesPanel') : $('#gamePanel');
   const title = isSana ? $('#sanaGamesTitle') : $('#gameTitle');
-  const content = isSana ? $('#sanaGamesContent') : $('#gameContent');
+  const content = isSana ? $('#sanaGamesContent') ?? $('#gameContent') : $('#gameContent');
   if (!panel || !content) return;
   panel.classList.add('open');
+  // تأكد أن الصفحة المنفصلة ظاهرة
+  if (isSana) {
+    $('#sanaGamesView')?.classList.remove('hidden');
+    $('#homeView')?.classList.add('hidden');
+    $('#menuView')?.classList.add('hidden');
+  }
   if (target === 'home') hideRoomBox();
 
   if (type === 'quiz') {
@@ -43,6 +49,14 @@ export function openGame(type: string, target: 'home' | 'sana' = 'home'): void {
   }
   if (type === 'sanaGameArt') {
     if (title) title.textContent = 'ألعاب سَنا';
+    // دخول مباشر من الصفحة الرئيسية: ننقل للمشاهدة المنفصلة أولاً
+    if (target !== 'sana') {
+      $('#sanaGamesView')?.classList.remove('hidden');
+      $('#homeView')?.classList.add('hidden');
+      $('#menuView')?.classList.add('hidden');
+      $('#navSanaGames')?.classList.add('active');
+      $('#navOrder')?.classList.remove('active');
+    }
     startSanaGameArt();
     return;
   }
@@ -55,11 +69,17 @@ export function openGame(type: string, target: 'home' | 'sana' = 'home'): void {
 export function initGamePanel(): void {
   $$<HTMLButtonElement>('[data-game]').forEach((btn) => {
     const kind = (btn.dataset.game ?? '') as GameKind;
-    btn.addEventListener('click', () => openGame(kind, kind === 'sanaGameArt' ? 'sana' : 'home'));
+    btn.addEventListener('click', () => openGame(kind, 'home'));
   });
 
   $('#closeGame')?.addEventListener('click', () => {
     stopAll();
     $('#gamePanel')?.classList.remove('open');
+  });
+
+  // زر الإغلاق في صفحة سَنا المنفصلة
+  $('#closeSanaGames')?.addEventListener('click', () => {
+    stopAll();
+    $('#sanaGamesPanel')?.classList.remove('open');
   });
 }

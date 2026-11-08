@@ -18,8 +18,11 @@ import { initOrderView } from './ui/order.ts';
 import { initGamePanel } from './ui/game.ts';
 import { initRoomUi } from './ui/room.ts';
 import { initAccountView } from './ui/account.ts';
+import { initPwaInstall } from './ui/pwa.ts';
 
 initOrderView();
 initGamePanel();
 initRoomUi();
 initAccountView();
+initPwaInstall();
+

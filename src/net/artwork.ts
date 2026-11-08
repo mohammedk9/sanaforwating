@@ -121,7 +121,7 @@ export function artworkCardHtml(a: Artwork, canDelete: boolean): string {
   const liked = likedLocally(a.id);
   const date = a.createdAt ? new Date(a.createdAt).toLocaleDateString('ar-SA') : '';
   return `<article class="art-card" data-id="${esc(a.id)}">
-    <div class="art-img"><img src="${esc(a.image)}" alt="رسم ${esc(a.name)}" loading="lazy"></div>
+    <div class="art-img"><img src="${esc(a.image)}" alt="رسم ${esc(a.name)}" loading="lazy" decoding="async" width="150" height="150"></div>
     <div class="art-meta"><strong>${esc(a.name)}</strong><span>${esc(date)}</span></div>
     <div class="art-actions">
       <button class="art-like${liked ? ' liked' : ''}" data-like="${esc(a.id)}" ${liked ? 'disabled' : ''} aria-pressed="${liked}">❤️ ${a.likes}</button>

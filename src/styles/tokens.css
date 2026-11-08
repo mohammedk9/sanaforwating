@@ -21,3 +21,26 @@ body.order-ready .order-card .ready-message{display:block;border-color:var(--gre
 
 #readyMessage{display:none;margin-top:10px;padding:10px 12px;border:1px dashed var(--green);border-radius:12px;background:var(--paper2);color:var(--green-ink);font-weight:700;font-size:13px;text-align:center}
 
+/* ——— PWA + SEO + lazy images ——— */
+html{overscroll-behavior-y:contain;-webkit-tap-highlight-color:transparent}
+body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+img{max-width:100%;height:auto;display:block}
+img[src$=".svg"]{height:auto}
+.menu-img img,.art-img img,.brand-mark img{object-fit:cover;aspect-ratio:1/1}
+.menu-img img{aspect-ratio:118/124;width:100%}
+.brand-mark img{width:100%;height:100%;object-fit:contain}
+.pwa-install{position:sticky;top:10px;z-index:20;display:flex;align-items:center;gap:12px;background:#fffdfa;border:1px solid var(--line);border-radius:16px;padding:12px 14px;box-shadow:var(--shadow);margin-bottom:12px}
+.pwa-install[hidden]{display:none}
+.pwa-install__text{flex:1;display:grid;gap:2px}
+.pwa-install__text strong{font-size:13px}
+.pwa-install__text span{font-size:11px;color:var(--muted)}
+@media (display-mode: standalone){
+  .shell{padding-top:max(24px, env(safe-area-inset-top))}
+  .pwa-install{display:none!important}
+}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+
