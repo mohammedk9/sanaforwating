@@ -10,7 +10,15 @@ let deferredPrompt: BeforeInstallPromptEvent | null = null;
 export function initPwaInstall(): void {
   const banner = $<HTMLElement>('#pwaInstall');
   const btn = $<HTMLButtonElement>('#pwaInstallBtn');
+  const close = $<HTMLButtonElement>('#pwaClose');
   const standalone = isStandalone();
+
+  const hide = (): void => {
+    if (banner) banner.hidden = true;
+    try { localStorage.setItem('sana.pwa.dismissed', '1'); } catch { /* ignore */ }
+  };
+
+  close?.addEventListener('click', hide);
 
   const onPrompt = (e: Event): void => {
     e.preventDefault();
@@ -39,9 +47,9 @@ export function initPwaInstall(): void {
     if (banner) banner.hidden = true;
   });
 
-  // إظهار البانر مرة واحدة إن لم يثبت بعد
+  // إظهار البانر مرة واحدة إن لم يثبت ولم يُغلق
   try {
-    if (!localStorage.getItem('sana.pwa.installed') && !standalone && !deferredPrompt) {
+    if (!localStorage.getItem('sana.pwa.installed') && !localStorage.getItem('sana.pwa.dismissed') && !standalone) {
       window.setTimeout(() => {
         if (banner && !deferredPrompt) banner.hidden = false;
       }, 4000);

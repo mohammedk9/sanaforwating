@@ -12,13 +12,17 @@
 import { $, $$, toast } from './dom.ts';
 import { hasSupabase } from '../env.ts';
 import { ensureSession } from '../net/supabase.ts';
-import { listMenu, createExternalOrder, getExternalOrderStatus, fetchOrderStatus, type MenuItem } from '../net/admin.ts';
+import { listMenu, createExternalOrder, getExternalOrderStatus, fetchOrderStatus, extExtraItem, type MenuItem } from '../net/admin.ts';
 import { saveOrder, loadSavedOrder, subscribeToOrder, playReadySound, showLocalNotification, registerServiceWorker, canSubscribe, pushStatus } from '../net/push.ts';
 import { openGame } from './game.ts';
 
 type OrderStatus = 'preparing' | 'ready' | 'cancelled';
+type CartLine = { id: string; name: string; quantity: number };
 
 let pollTimer: number | undefined;
+const CART_KEY = 'sana.cart.v2';
+let cart: CartLine[] = [];
+
 
 function markReady(orderNumber: string): void {
   document.title = '🎉 طلبك جاهز! — SANA';
@@ -152,7 +156,7 @@ export function showMenuView(): void {
 let menuItemsCache: MenuItem[] = [];
 let menuLoaded = false;
 
-/** شبكة منتجات مع صور قابلة للنقر (صفحة منفصلة). */
+/** شبكة منتجات: الضغط يضيف للسلة (بدون خيار منتج من المنيو كواجهة). */
 export function renderMenuGrid(): void {
   const grid = $('#menuGrid');
   const note = $('#menuNote');
@@ -164,7 +168,7 @@ export function renderMenuGrid(): void {
       <span class="menu-desc">${escHtml(it.description || '')}</span>
       <span class="menu-price">${it.price ? `${it.price} ر.س` : ''}${it.allergens?.length ? ` · يحتوي: ${it.allergens.join('، ')}` : ''}</span>
     </button>`).join('');
-    if (note) note.textContent = menuItemsCache.length ? `${menuItemsCache.length} منتج — النقر يختار المنتج في النموذج.` : 'لا توجد منتجات بعد.';
+    if (note) note.textContent = menuItemsCache.length ? `${menuItemsCache.length} منتج — الضغط يضيفه للسلة.` : 'لا توجد منتجات بعد.';
   };
   if (menuLoaded) { paint(); return; }
   void listMenu().then((data) => {
@@ -173,6 +177,75 @@ export function renderMenuGrid(): void {
     paint();
   });
 }
+
+function loadCart(): void {
+  try {
+    const raw = localStorage.getItem(CART_KEY);
+    if (!raw) { cart = []; return; }
+    const arr = JSON.parse(raw) as CartLine[];
+    cart = Array.isArray(arr) ? arr.filter((l) => l && l.id && l.name) : [];
+  } catch { cart = []; }
+}
+function saveCart(): void {
+  try { localStorage.setItem(CART_KEY, JSON.stringify(cart.slice(0, 30))); } catch { /* ignore */ }
+  window.dispatchEvent(new Event('sana:cart-change'));
+}
+export function addToCart(id: string, name: string): void {
+  const line = cart.find((l) => l.id === id);
+  if (line) line.quantity = Math.min(Math.max(line.quantity + 1, 1), 20);
+  else cart.push({ id, name, quantity: 1 });
+  saveCart();
+  void renderCart();
+  toast('أُضيف إلى السلة — ' + name);
+}
+export function setCartQty(id: string, qty: number): void {
+  const i = cart.findIndex((l) => l.id === id);
+  if (i < 0) return;
+  if (qty <= 0) cart.splice(i, 1);
+  else cart[i].quantity = Math.min(Math.max(qty, 1), 20);
+  saveCart();
+  void renderCart();
+}
+export function removeFromCart(id: string): void {
+  cart = cart.filter((l) => l.id !== id);
+  saveCart();
+  void renderCart();
+}
+export function cartCount(): number { return cart.reduce((a, l) => a + l.quantity, 0); }
+export function cartLines(): CartLine[] { return [...cart]; }
+
+function cartTotal(priceOf: (id: string) => number): number {
+  return cart.reduce((s, l) => s + (priceOf(l.id) || 0) * l.quantity, 0);
+}
+
+export function renderCart(): void {
+  loadCart();
+  const box = $('#cartBox');
+  const countEl = $('#cartCount');
+  if (countEl) countEl.textContent = String(cartCount());
+  if (!box) return;
+  if (!cart.length) {
+    box.innerHTML = `<div style="font-size:11px;color:var(--muted)">السلة فارغة — اضغط أي منتج لإضافته.</div>`;
+    return;
+  }
+  const priceOf = (id: string): number => menuItemsCache.find((m) => m.id === id)?.price ?? 0;
+  const lines = cart.map((l) => `<div class="cart-line">
+      <span class="cart-name">${escHtml(l.name)}</span>
+      <span class="cart-controls">
+        <button class="cart-btn" data-cart-minus="${l.id}" aria-label="إنقاص">−</button>
+        <span class="cart-qty">${l.quantity}</span>
+        <button class="cart-btn" data-cart-plus="${l.id}" aria-label="زيادة">+</button>
+        <button class="cart-del" data-cart-remove="${l.id}">حذف</button>
+      </span>
+      <span class="cart-line-total">${priceOf(l.id) ? (priceOf(l.id) * l.quantity).toFixed(2).replace(/\.00$/, '') + ' ر.س' : ''}</span>
+    </div>`).join('');
+  const total = cartTotal(priceOf);
+  box.innerHTML = lines + `<div style="display:flex;justify-content:space-between;margin-top:8px;font-weight:700"><span>المجموع</span><span>${total ? total.toFixed(2).replace(/\.00$/, '') + ' ر.س' : 'يُحسب في الموقع'}</span></div>`;
+  box.querySelectorAll<HTMLElement>('[data-cart-plus]').forEach((b) => b.addEventListener('click', () => setCartQty(b.dataset.cartPlus!, (cart.find((l) => l.id === b.dataset.cartPlus)?.quantity ?? 0) + 1)));
+  box.querySelectorAll<HTMLElement>('[data-cart-minus]').forEach((b) => b.addEventListener('click', () => setCartQty(b.dataset.cartMinus!, (cart.find((l) => l.id === b.dataset.cartMinus)?.quantity ?? 0) - 1)));
+  box.querySelectorAll<HTMLElement>('[data-cart-remove]').forEach((b) => b.addEventListener('click', () => removeFromCart(b.dataset.cartRemove!)));
+}
+
 
 /** نموذج مطالبة الولاء التجريبي (تحقق في الواجهة فقط). */
 function initLoyaltyForm(): void {
@@ -235,7 +308,7 @@ export function initOrderView(): void {
       btn.disabled = true;
       btn.style.opacity = '.7';
     } else if (!st.supported) {
-      btn.textContent = '🔔 الإشعارات المحلية: سنرن ونظهر Toast عند الجاهزية (بدون VAPID)';
+      btn.textContent = '🔔 إشعارات محلية على جهازك بنظام البيجر';
       btn.disabled = true;
     } else {
       btn.textContent = '🔔 تفعيل إشعارات «جاهزية الطلب»';
@@ -295,74 +368,44 @@ export function initOrderView(): void {
 
   initExternalOrderForm();
 
-  // أدوات العرض التجريبي — لن تظهر في نظام الموظف الحقيقي
-  $$<HTMLButtonElement>('[data-status]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const requested = btn.dataset.status;
-      setStatus(requested === 'ready' ? 'ready' : 'preparing');
-      toast(requested === 'ready' ? 'تمت محاكاة جاهزية الطلب' : 'تم تحديث حالة الطلب');
-    });
-  });
-
-  // التنقل بين الصفحات المنفصلة — القائمة الجانبية أولاً
+  // التنقل بين الصفحات المنفصلة — القائمة الجانبية فقط
   $('#navOrder')?.addEventListener('click', () => showView('order'));
   $('#navMenu')?.addEventListener('click', () => showMenuView());
   $('#navSanaGames')?.addEventListener('click', () => showView('sana'));
   $('#navLoyalty')?.addEventListener('click', () => showView('loyalty'));
   $('#navAccount')?.addEventListener('click', () => showView('account'));
   $('#sideGameBtn')?.addEventListener('click', () => showView('sana'));
-  $('#goOrder')?.addEventListener('click', () => showMenuView());
-  $('#goGames')?.addEventListener('click', () => showView('sana'));
 
   $('#menuGrid')?.addEventListener('click', (e) => {
     const card = (e.target as HTMLElement).closest<HTMLElement>('[data-menu-id]');
     if (!card?.dataset.menuId) return;
-    const sel = $<HTMLSelectElement>('#extItem');
-    if (!sel) return;
-    sel.value = card.dataset.menuId;
-    sel.dispatchEvent(new Event('change'));
-    $('#menuGrid')?.querySelectorAll('.menu-card').forEach((c) => c.classList.toggle('selected', c === card));
-    toast('تم اختيار المنتج — أكمل البيانات وأكّد الطلب');
-    $('#externalOrderCard')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const item = menuItemsCache.find((m) => m.id === card.dataset.menuId);
+    if (!item) return;
+    addToCart(item.id, item.name);
+    card.classList.toggle('selected', true);
+    window.setTimeout(() => card.classList.remove('selected'), 400);
+    $('#cartBox')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 
   initLoyaltyForm();
   initExternalOrderForm();
 }
 
-/** نموذج الطلب الخارجي: منيو + نوع (توصيل/استلام) + عنوان + موقع GPS + رابط خرائط. */
+/** نموذج الطلب الخارجي: سلة منتجات (بدون خيار منتج من المنيو) + نوع + عنوان + موقع. */
 function initExternalOrderForm(): void {
   const btn = $('#externalOrderBtn');
   if (!btn) return;
 
-  let items: MenuItem[] = [];
-  void listMenu().then((data) => {
-    items = data;
-    renderMenuItems();
-  });
-
   let lat: number | null = null;
   let lng: number | null = null;
 
-  const renderMenuItems = (): void => {
-    const select = $<HTMLSelectElement>('#extItem');
-    if (!select) return;
-    select.innerHTML = items
-      .map((it) => `<option value="${it.id}" data-name="${escHtml(it.name)}" data-allergens="${escHtml((it.allergens ?? []).join('، '))}">${it.name}${it.allergens?.length ? ` — يحتوي: ${it.allergens.join('، ')}` : ''}</option>`)
-      .join('');
-    updateAllergenHint();
-  };
-
   const updateAllergenHint = (): void => {
-    const select = $<HTMLSelectElement>('#extItem');
     const hint = $('#extAllergenHint');
-    if (!select || !hint) return;
-    const opt = select.selectedOptions[0];
-    const allergens = opt?.dataset.allergens ?? '';
-    hint.textContent = allergens ? `⚠️ يحتوي على: ${allergens}` : 'لا تحتوي على مسببات حساسية معروفة.';
+    if (!hint) return;
+    const names = cartLines().map((l) => l.name).join('، ');
+    hint.textContent = names ? `⚠️ اخترت: ${names}` : 'السلة فارغة — اضغط أي منتج لإضافته.';
   };
 
-  $('#extItem')?.addEventListener('change', updateAllergenHint);
   $('#extDeliveryType')?.addEventListener('change', () => {
     const type = ($<HTMLSelectElement>('#extDeliveryType')?.value ?? 'delivery');
     const addrBox = $<HTMLElement>('#extAddressBox');

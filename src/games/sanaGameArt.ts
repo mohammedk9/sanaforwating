@@ -105,10 +105,10 @@ export function startSanaGameArt(): void {
       </section>
     </div>`;
 
-  const latte = $<HTMLCanvasElement>('#sgLatte');
+  const latency = $<HTMLCanvasElement>('#sgLatte');
   const guide = $<HTMLCanvasElement>('#sgGuide');
   const game = $<HTMLCanvasElement>('#sgGame');
-  if (!latte || !guide || !game) return;
+  if (!latency || !guide || !game) return;
 
   injectBaristaStyles();
   const baristaBox = $<HTMLElement>('#sgBarista');
@@ -140,6 +140,8 @@ export function startSanaGameArt(): void {
   $('#sgT1')?.addEventListener('click', () => tab(1), sig);
   $('#sgT2')?.addEventListener('click', () => tab(2), sig);
   $('#sgT3')?.addEventListener('click', () => tab(3), sig);
+  // تفعيل أول تبويب عند الفتح (يُليه مرة واحدة فقط عند الإقلاع)
+  tab(1);
   /* ===== اللعبة 1: فنجان اللاتيه ===== */
   const S = mS();
   function mS(): number { return 340; }
@@ -151,7 +153,7 @@ export function startSanaGameArt(): void {
     ctx.scale(dpr, dpr);
     return ctx;
   };
-  const lc = setup(latte);
+  const lc = setup(latency);
   const gc = setup(guide);
   let color = '#FFF4E0';
   let size = 9;
@@ -221,7 +223,7 @@ export function startSanaGameArt(): void {
   drawGuide();
 
   const pos = (e: PointerEvent): [number, number] => {
-    const r = latte.getBoundingClientRect();
+    const r = latency.getBoundingClientRect();
     return [((e.clientX - r.left) * S) / r.width, ((e.clientY - r.top) * S) / r.height];
   };
   let last: [number, number] | null = null;
@@ -255,19 +257,19 @@ export function startSanaGameArt(): void {
     lc.restore();
   };
 
-  latte.addEventListener('pointerdown', (e) => {
-    latte.setPointerCapture(e.pointerId);
+  latency.addEventListener('pointerdown', (e) => {
+    latency.setPointerCapture(e.pointerId);
     last = pos(e);
     dot(last);
   }, sig);
-  latte.addEventListener('pointermove', (e) => {
+  latency.addEventListener('pointermove', (e) => {
     if (!last) return;
     const p = pos(e);
     stroke(last, p);
     last = p;
   }, sig);
   ['pointerup', 'pointercancel'].forEach((t) =>
-    latte.addEventListener(t, () => (last = null), sig),
+    latency.addEventListener(t, () => (last = null), sig),
   );
   const COLS: [string, string][] = [
     ['#FFF4E0', 'حليب'],
@@ -305,7 +307,7 @@ export function startSanaGameArt(): void {
     tmp.width = S;
     tmp.height = S;
     const ctx = tmp.getContext('2d')!;
-    ctx.drawImage(latte, 0, 0, S, S);
+    ctx.drawImage(latency, 0, 0, S, S);
     return tmp.toDataURL('image/png');
   };
 

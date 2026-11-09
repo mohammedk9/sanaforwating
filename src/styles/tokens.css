@@ -34,6 +34,14 @@ img[src$=".svg"]{height:auto}
 .pwa-install__text{flex:1;display:grid;gap:2px}
 .pwa-install__text strong{font-size:13px}
 .pwa-install__text span{font-size:11px;color:var(--muted)}
+.pwa-install .close-btn{border:1px solid var(--line);background:#fffdfa;width:28px;height:28px;border-radius:999px;color:#8b8178;flex:none}
+.cart-line{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:14px;padding:8px 10px;background:#fffdfa}
+.cart-name{flex:1;min-width:0;font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cart-controls{display:flex;align-items:center;gap:8px}
+.cart-btn{border:1px solid var(--line);background:#fffefa;width:24px;height:24px;border-radius:999px;display:grid;place-items:center;font-weight:700;line-height:1}
+.cart-qty{min-width:22px;text-align:center;font-weight:700}
+.cart-del{border:1px solid #e1b9b1;background:#f8ece9;color:#914f43;padding:5px 9px;border-radius:999px;font-size:11px;cursor:pointer}
+.cart-line-total{font-weight:700;font-size:12px;color:#8a684b;white-space:nowrap}
 @media (display-mode: standalone){
   .shell{padding-top:max(24px, env(safe-area-inset-top))}
   .pwa-install{display:none!important}

@@ -258,6 +258,7 @@ export async function createExternalOrder(input: {
   itemId: string | null;
   itemName: string;
   quantity: number;
+  extraItems?: Array<{ id: string | null; name: string; quantity: number }>;
   deliveryType: 'delivery' | 'pickup';
   address: string;
   lat: number | null;
@@ -271,6 +272,7 @@ export async function createExternalOrder(input: {
     p_item_id: input.itemId,
     p_item_name: input.itemName,
     p_quantity: input.quantity,
+    p_extra_items: input.extraItems ?? [],
     p_delivery_type: input.deliveryType,
     p_address: input.address || null,
     p_lat: input.lat,
@@ -280,6 +282,10 @@ export async function createExternalOrder(input: {
   })) as { ok?: boolean; reason?: string; number?: string; orderId?: string };
   if (!data?.ok || !data.number) throw new Error(extReason(data?.reason));
   return { number: data.number, orderId: data.orderId ?? '' };
+}
+
+export function extExtraItem(id: string | null, name: string, quantity: number): { id: string | null; name: string; quantity: number } {
+  return { id: id || null, name, quantity: Math.min(Math.max(quantity, 1), 20) };
 }
 
 export async function getExternalOrderStatus(

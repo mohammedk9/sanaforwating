@@ -80,10 +80,11 @@
     </div>
     <div class="top-pill"><span class="dot"></span> لا تحتاج إلى تحميل تطبيق</div>
   </header>
-<!-- PWA standalone install banner -->
+<!-- PWA standalone install banner (مع زر إغلاق ×) -->
 <div class="pwa-install" id="pwaInstall" hidden>
   <div class="pwa-install__text"><strong>ثبّت تطبيق سَنا</strong><span>أضِفه لشاشة جوالك ليفتح بملء الشاشة كتطبيق.</span></div>
   <button class="btn" id="pwaInstallBtn">تثبيت</button>
+  <button class="close-btn" id="pwaClose" aria-label="إغلاق الإعلان">✕</button>
 </div>
 
 <div class="layout">
@@ -115,11 +116,6 @@
           </div>
           <div class="ready-message" id="readyMessage">🎉 طلبك جاهز! توجه إلى نقطة الاستلام، نتمنى لك تجربة سعيدة.</div>
         </section>
-
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-          <button class="btn" id="goOrder" style="flex:1;min-width:160px">🛵 اطلب الآن (صفحة منفصلة)</button>
-          <button class="btn light" id="goGames" style="flex:1;min-width:160px">🎮 ألعاب سَنا (صفحة منفصلة)</button>
-        </div>
 
         <section class="games-grid">
           <article class="game-card">
@@ -159,17 +155,17 @@
           <div id="roomPlayers" style="text-align:center;font-size:10px;color:#8c7a6b;margin-top:10px">أنت · بانتظار الأصدقاء</div>
         </section>
 
-        <details class="demo-tools">
-          <summary>أدوات العرض التجريبي — محاكاة حالة الطلب</summary>
-          <div class="demo-buttons"><button data-status="preparing">الطلب قيد التحضير</button><button data-status="ready">اجعل الطلب جاهزاً</button><button data-status="reset">إعادة الحالة</button><button id="showRoom">تجربة غرفة أصدقاء</button></div>
-          <div class="hint">هذه الأدوات للعرض فقط، ولن تظهر في نظام الموظف الحقيقي.</div>
-        </details>
       </section>
 
       <section class="home-view hidden" id="menuView">
         <div class="hero"><div><h1>اطلب الآن.</h1><p>اختر منتجاتك من المنيو وأرسل طلبك (توصيل أو استلام).</p></div><div class="store-label">☕ منيو سَنا</div></div>
         <section class="card">
-          <div class="section-title" style="margin-bottom:12px"><span class="mini-icon">◉</span> اختر منتجاتك</div>
+          <div class="section-title" style="margin-bottom:12px"><span class="mini-icon">🛒</span> السلة (<span id="cartCount">0</span>)</div>
+          <div id="cartBox" style="display:grid;gap:8px"></div>
+        </section>
+
+        <section class="card">
+          <div class="section-title" style="margin-bottom:12px"><span class="mini-icon">◉</span> اختر منتجاتك — الضغط يضيف للسلة</div>
           <div id="menuGrid" class="menu-grid"></div>
           <div id="menuNote" style="font-size:11px;color:var(--muted);margin-top:10px">جارٍ تحميل المنيو…</div>
         </section>
@@ -183,8 +179,6 @@
           <div class="form-grid">
             <div class="field"><label for="extName">اسمك</label><input id="extName" placeholder="مستخدم"></div>
             <div class="field"><label for="extPhone">رقم الجوال</label><input id="extPhone" inputmode="tel" placeholder="05XXXXXXXX"></div>
-            <div class="field"><label for="extItem">المنتج من المنيو</label><select id="extItem" style="width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:#fffefa;font:inherit"></select></div>
-            <div class="field"><label for="extQty">الكمّية</label><input id="extQty" type="number" min="1" max="20" value="1"></div>
             <div class="field"><label for="extDeliveryType">نوع الطلب</label>
               <select id="extDeliveryType" style="width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:#fffefa;font:inherit">
                 <option value="delivery">توصيل</option>
