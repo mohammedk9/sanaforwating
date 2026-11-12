@@ -1,0 +1,24 @@
+
+/* ——— لوحة الإدارة: الطلبات والسجل والموظفون (0009) ——— */
+.admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:14px}
+.admin-stats .stat{background:#fffdfa;border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:grid;gap:2px}
+.admin-stats .stat b{font-size:18px;color:#2a7191}
+.admin-stats .stat span{font-size:10px;color:var(--muted)}
+.admin-stats .stat.wide{grid-column:1/-1}
+.admin-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.admin-toolbar input{flex:1;min-width:150px;border:1px solid var(--line);background:#fffefa;border-radius:12px;padding:10px 12px;font:inherit;font-size:12px}
+.admin-toolbar select{border:1px solid var(--line);background:#fffefa;border-radius:12px;padding:10px 12px;font:inherit;font-size:12px}
+.admin-row{border:1px solid var(--line);background:#fffdfa;border-radius:14px;padding:10px 12px;margin-bottom:8px}
+.admin-row-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.admin-row-head strong{font-size:12px}
+.admin-row-meta{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.8}
+.admin-row-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.admin-row-actions .btn{font-size:11px;padding:6px 10px}
+.chip{font-size:10px;font-weight:700;background:#f4eee5;border-radius:999px;padding:4px 9px;white-space:nowrap}
+.order-items{display:grid;gap:4px;margin-top:6px}
+.order-item{display:flex;justify-content:space-between;gap:8px;font-size:11px;background:#f7f1e8;border-radius:9px;padding:5px 9px}
+.order-item small{color:#a8794f}
+.admin-empty{font-size:11px;color:var(--muted);text-align:center;padding:14px 0}
+.admin-card{border:1px solid var(--line);background:#fffdfa;border-radius:14px;padding:12px;margin-bottom:12px}
+.admin-card h4{margin:0 0 8px;font-size:13px}
+.admin-hint{font-size:10px;color:var(--muted);margin:6px 0 0}

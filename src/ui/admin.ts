@@ -5,15 +5,15 @@
 import { $, toast } from './dom.ts';
 import { hasSupabase } from '../env.ts';
 import { signIn, signOut } from '../net/account.ts';
-import { isStaff, listQuestions, setOrderStatus, upsertQuestion, deleteQuestion, setQuestionActive, listAdminMenu, upsertMenuItem, deleteMenuItem, listExternalOrders, setExternalStatus, esc, type OrderStatus, type MenuItem, type ExternalOrder } from '../net/admin.ts';
+import { isStaff, listQuestions, upsertQuestion, deleteQuestion, setQuestionActive, listAdminMenu, upsertMenuItem, deleteMenuItem, setMenuActive, esc, type MenuItem } from '../net/admin.ts';
+import { renderOrdersSection, renderExtOrdersSection, renderStaffSection, renderAuditSection, renderStatsBar } from './adminOrders.ts';
 
 import { listArtworks, deleteArtwork, artworkCardHtml } from '../net/artwork.ts';
 
 let questions: Awaited<ReturnType<typeof listQuestions>> = [];
 let menuItems: MenuItem[] = [];
-let extOrders: ExternalOrder[] = [];
 let artworksCache: Awaited<ReturnType<typeof listArtworks>> = []; // للعرض
-let section: 'order' | 'questions' | 'menu' | 'extOrders' | 'artworks' = 'order';
+let section: 'orders' | 'questions' | 'menu' | 'extOrders' | 'artworks' | 'staff' | 'audit' = 'orders';
 
 function notice(id: string, msg: string, kind: 'success' | 'error' = 'error'): void {
   const el = $(id);
@@ -22,6 +22,22 @@ function notice(id: string, msg: string, kind: 'success' | 'error' = 'error'): v
   el.classList.add('show', kind);
 }
 
+/** إعادة رسم اللوحة الحالية بعد أي تعديل. */
+async function refresh(): Promise<void> {
+  await renderAdmin();
+}
+/** تعطيل الزر أثناء التنفيذ لمنع الضغط المزدوج. */
+function busy(btn: HTMLButtonElement, on: boolean, label?: string): void {
+  btn.disabled = on;
+  if (on) {
+    btn.dataset.label = btn.textContent ?? '';
+    btn.textContent = label ?? 'جار…';
+    btn.style.opacity = '.6';
+  } else {
+    btn.textContent = btn.dataset.label ?? btn.textContent;
+    btn.style.opacity = '';
+  }
+}
 export async function renderAdmin(): Promise<void> {
   const box = $('#tabContent');
   if (!box) return;
@@ -51,21 +67,24 @@ export async function renderAdmin(): Promise<void> {
 
   questions = await listQuestions().catch(() => []);
   menuItems = await listAdminMenu().catch(() => []);
-  extOrders = await listExternalOrders().catch(() => []);
   artworksCache = await listArtworks().catch(() => []);
   box.innerHTML = `
+    <div id="adminStats" class="admin-stats"></div>
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-      <button class="btn ${section === 'order' ? '' : 'light'}" id="secOrder" style="flex:1">حالة الطلب</button>
+      <button class="btn ${section === 'orders' ? '' : 'light'}" id="secOrders" style="flex:1">الطلبات</button>
+      <button class="btn ${section === 'extOrders' ? '' : 'light'}" id="secExtOrders" style="flex:1">الطلبات الخارجية</button>
+      <button class="btn ${section === 'menu' ? '' : 'light'}" id="secMenu" style="flex:1">المنيو</button>
       <button class="btn ${section === 'questions' ? '' : 'light'}" id="secQuestions" style="flex:1">الأسئلة (${questions.length})</button>
-      <button class="btn ${section === 'menu' ? '' : 'light'}" id="secMenu" style="flex:1">المنيو (${menuItems.length})</button>
-      <button class="btn ${section === 'extOrders' ? '' : 'light'}" id="secExtOrders" style="flex:1">طلبات خارجية (${extOrders.length})</button>
       <button class="btn ${section === 'artworks' ? '' : 'light'}" id="secArtworks" style="flex:1">الرسومات (${artworksCache.length})</button>
+      <button class="btn ${section === 'staff' ? '' : 'light'}" id="secStaff" style="flex:1">الموظفون</button>
+      <button class="btn ${section === 'audit' ? '' : 'light'}" id="secAudit" style="flex:1">السجل</button>
       <button class="btn outline" id="adminLogout">خروج</button>
     </div>
     <div id="adminBody"></div>`;
+  void renderStatsBar();
 
-  $('#secOrder')?.addEventListener('click', () => {
-    section = 'order';
+  $('#secOrders')?.addEventListener('click', () => {
+    section = 'orders';
     void renderAdmin();
   });
   $('#secQuestions')?.addEventListener('click', () => {
@@ -84,15 +103,25 @@ export async function renderAdmin(): Promise<void> {
     section = 'artworks';
     void renderAdmin();
   });
+  $('#secStaff')?.addEventListener('click', () => {
+    section = 'staff';
+    void renderAdmin();
+  });
+  $('#secAudit')?.addEventListener('click', () => {
+    section = 'audit';
+    void renderAdmin();
+  });
   $('#adminLogout')?.addEventListener('click', () => {
     void signOut().then(() => void renderAdmin());
     toast('تم تسجيل الخروج');
   });
 
-  if (section === 'order') renderOrderSection();
+  if (section === 'orders') void renderOrdersSection(refresh);
   else if (section === 'menu') renderMenuSection();
-  else if (section === 'extOrders') renderExtOrdersSection();
+  else if (section === 'extOrders') void renderExtOrdersSection(refresh);
   else if (section === 'artworks') renderArtworksSection();
+  else if (section === 'staff') void renderStaffSection(refresh);
+  else if (section === 'audit') void renderAuditSection(refresh);
   else renderQuestionsSection();
 }
 
@@ -139,44 +168,6 @@ async function handleAdminLogin(): Promise<void> {
     notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الدخول.');
   }
 }
-
-function renderOrderSection(): void {
-  const body = $('#adminBody');
-  if (!body) return;
-  body.innerHTML = `
-    <div class="field" style="margin-bottom:10px">
-      <label for="orderNum">رقم الطلب (رقم الفاتورة)</label>
-      <input id="orderNum" inputmode="numeric" placeholder="مثال: 890">
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-      <button class="btn" data-order-status="preparing">قيد التحضير</button>
-      <button class="btn light" data-order-status="ready">جاهز للاستلام</button>
-      <button class="btn outline" data-order-status="cancelled">ملغي</button>
-    </div>
-    <div class="notice" id="adminNotice"></div>
-    <p style="font-size:10px;color:var(--muted)">تُحفظ الحالة على الخادم ويراها العميل عند إدخال نفس الرقم في «متابعة طلبك».</p>`;
-
-  body.querySelectorAll<HTMLButtonElement>('[data-order-status]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const num = ($<HTMLInputElement>('#orderNum')?.value ?? '').trim();
-      if (!/^\d{2,12}$/.test(num)) {
-        notice('#adminNotice', 'أدخل رقم طلب صحيحاً (2–12 رقماً).');
-        return;
-      }
-      try {
-        await setOrderStatus(num, btn.dataset.orderStatus as OrderStatus);
-        notice('#adminNotice', `تم تحديث الطلب ${num} إلى: ${label(btn.dataset.orderStatus)}`, 'success');
-        toast('تم تحديث حالة الطلب');
-      } catch (error) {
-        notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر التحديث.');
-      }
-    });
-  });
-}
-
-const label = (s?: string): string =>
-  s === 'ready' ? 'جاهز للاستلام' : s === 'cancelled' ? 'ملغي' : 'قيد التحضير';
-
 
 function renderQuestionsSection(): void {
   const body = $('#adminBody');
@@ -335,6 +326,7 @@ function renderMenuSection(): void {
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
           <button class="btn light" data-medit="${m.id}">تعديل</button>
           <button class="btn outline" data-mdel="${m.id}">حذف</button>
+          <button class="btn light" data-mstock="${m.id}" data-mactive="${m.active === false ? 0 : 1}">${m.active === false ? 'إتاحة للطلب' : 'نفد المخزون'}</button>
         </div>
       </div>
     </div>`).join('');
@@ -353,15 +345,35 @@ function renderMenuSection(): void {
       if (item) showMenuForm(item);
     });
   });
+
   body.querySelectorAll<HTMLButtonElement>('[data-mdel]').forEach((b) => {
     b.addEventListener('click', async () => {
-      if (!b.dataset.mdel || !window.confirm('حذف هذا المنتج من المنيو نهائياً؟')) return;
+      if (!b.dataset.mdel || !window.confirm('حذف هذا المنتج من المنيو نهائيا')) return;
+      busy(b, true);
       try {
         await deleteMenuItem(b.dataset.mdel);
         toast('تم حذف المنتج');
         await renderAdmin();
       } catch (error) {
-        notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الحذف.');
+        busy(b, false);
+        notice('#adminNotice', error instanceof Error ? error.message : 'تعذر الحذف.');
+      }
+    });
+  });
+
+  body.querySelectorAll<HTMLButtonElement>('[data-mstock]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const id = b.dataset.mstock ?? '';
+      const next = b.dataset.mactive !== '1';
+      if (!id) return;
+      busy(b, true);
+      try {
+        await setMenuActive(id, next);
+        toast(next ? 'المنتج متاح للطلب الآن' : 'تم تعطيل المنتج (نفد المخزون)');
+        await renderAdmin();
+      } catch (error) {
+        busy(b, false);
+        notice('#adminNotice', error instanceof Error ? error.message : 'تعذر التحديث.');
       }
     });
   });
@@ -423,54 +435,5 @@ function showMenuForm(item: MenuItem | null): void {
     }
   });
 }
-
-
-function renderExtOrdersSection(): void {
-  const body = $('#adminBody');
-  if (!body) return;
-
-  const rows = extOrders.map((o) => `
-    <div style="border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:8px;background:#fffdfa">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:start">
-        <strong style="font-size:12px">طلب #${esc(o.number)} — ${esc(o.itemName)} × ${o.quantity}</strong>
-        <span style="font-size:10px;color:${o.status === 'ready' ? '#2a7191' : o.status === 'delivered' ? '#476b56' : o.status === 'cancelled' ? '#a65448' : '#a8794f'}">${statusLabel(o.status)}</span>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin:4px 0">
-        ${esc(o.customerName)} · ${esc(o.phone)} · ${o.deliveryType === 'pickup' ? 'استلام من المحل' : 'توصيل'} · ${new Date(o.createdAt).toLocaleString('ar-SA')}
-      </div>
-      ${o.address ? `<div style="font-size:11px;margin:2px 0">📍 ${esc(o.address)}${o.lat && o.lng ? ` <a href="https://www.google.com/maps?q=${o.lat},${o.lng}" target="_blank" rel="noopener">(خريطة)</a>` : ''}</div>` : ''}
-      ${o.mapsUrl ? `<div style="font-size:11px;margin:2px 0">🔗 <a href="${esc(o.mapsUrl)}" target="_blank" rel="noopener">رابط الخرائط</a></div>` : ''}
-      ${o.notes ? `<div style="font-size:11px;margin:2px 0;color:#8a684b">📝 ${esc(o.notes)}</div>` : ''}
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-        <button class="btn light" data-ext-status="preparing" data-num="${o.number}">قيد التحضير</button>
-        <button class="btn light" data-ext-status="ready" data-num="${o.number}">جاهز</button>
-        <button class="btn light" data-ext-status="delivered" data-num="${o.number}">تم التوصيل</button>
-        <button class="btn outline" data-ext-status="cancelled" data-num="${o.number}">ملغي</button>
-      </div>
-    </div>`).join('');
-
-  body.innerHTML = `
-    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${extOrders.length} طلب خارجي — الأحدث أولاً.</div>
-    ${rows || '<div style="font-size:11px;color:var(--muted)">لا توجد طلبات خارجية بعد.</div>'}
-    <div class="notice" id="adminNotice"></div>`;
-
-  body.querySelectorAll<HTMLButtonElement>('[data-ext-status]').forEach((b) => {
-    b.addEventListener('click', async () => {
-      const num = b.dataset.num ?? '';
-      const status = b.dataset.extStatus as ExternalOrder['status'];
-      if (!num || !status) return;
-      try {
-        await setExternalStatus(num, status);
-        toast(`طلب ${num}: ${statusLabel(status)}`);
-        await renderAdmin();
-      } catch (error) {
-        notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر التحديث.');
-      }
-    });
-  });
-}
-
-const statusLabel = (s: string): string =>
-  s === 'ready' ? 'جاهز' : s === 'delivered' ? 'تم التوصيل' : s === 'cancelled' ? 'ملغي' : 'قيد التحضير';
 
 

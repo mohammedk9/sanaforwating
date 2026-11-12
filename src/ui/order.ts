@@ -366,8 +366,6 @@ export function initOrderView(): void {
     toast('تم عرض حالة الطلب التجريبية');
   });
 
-  initExternalOrderForm();
-
   // التنقل بين الصفحات المنفصلة — القائمة الجانبية فقط
   $('#navOrder')?.addEventListener('click', () => showView('order'));
   $('#navMenu')?.addEventListener('click', () => showMenuView());
@@ -406,6 +404,9 @@ function initExternalOrderForm(): void {
     hint.textContent = names ? `⚠️ اخترت: ${names}` : 'السلة فارغة — اضغط أي منتج لإضافته.';
   };
 
+  window.addEventListener("sana:cart-change", updateAllergenHint);
+  updateAllergenHint();
+
   $('#extDeliveryType')?.addEventListener('change', () => {
     const type = ($<HTMLSelectElement>('#extDeliveryType')?.value ?? 'delivery');
     const addrBox = $<HTMLElement>('#extAddressBox');
@@ -441,16 +442,16 @@ function initExternalOrderForm(): void {
   btn.addEventListener('click', async () => {
     const name = ($<HTMLInputElement>('#extName')?.value ?? '').trim() || 'مستخدم';
     const phone = ($<HTMLInputElement>('#extPhone')?.value ?? '').replace(/[\s-]/g, '');
-    const qty = Math.min(Math.max(Number($<HTMLInputElement>('#extQty')?.value ?? 1), 1), 20);
+    const lines = cartLines();
+    const first = lines[0];
+    const itemName = first ? first.name : undefined;
+    const itemId = first ? first.id : null;
+    const qty = Math.min(Math.max(Number(first ? first.quantity : 1), 1), 20);
     const type = ($<HTMLSelectElement>('#extDeliveryType')?.value ?? 'delivery') as 'delivery' | 'pickup';
     const address = ($<HTMLInputElement>('#extAddress')?.value ?? '').trim();
     const mapsUrl = ($<HTMLInputElement>('#extMaps')?.value ?? '').trim();
     const notes = ($<HTMLInputElement>('#extNotes')?.value ?? '').trim();
 
-    const sel = $<HTMLSelectElement>('#extItem');
-    const opt = sel?.selectedOptions[0];
-    const itemName = opt?.dataset.name ?? (sel ? sel.value : '');
-    const itemId = opt ? opt.value : null;
 
     if (!itemName) {
       note('اختر منتجاً من المنيو.');
@@ -483,6 +484,7 @@ function initExternalOrderForm(): void {
         itemId,
         itemName,
         quantity: qty,
+        extraItems: lines.slice(1).map((l) => extExtraItem(l.id, l.name, l.quantity)),
         deliveryType: type,
         address,
         lat,
@@ -496,6 +498,9 @@ function initExternalOrderForm(): void {
       if (num) num.textContent = result.number;
       saveOrder(result.number, phone, 'preparing');
       startPolling(result.number);
+      cart = [];
+      saveCart();
+      renderCart();
       if (canSubscribe()) {
         void subscribeToOrder(result.number, phone).then((ok) =>
           toast(ok ? 'سيصلك إشعار عند الجاهزية حتى بعد إغلاق الصفحة ✅' : 'الإشعارات غير مفعّلة — الحالة تُحدَّث تلقائياً كل 15 ثانية'),

@@ -18,7 +18,7 @@ export interface AdminQuestion {
   active: boolean;
 }
 
-export type OrderStatus = 'preparing' | 'ready' | 'cancelled';
+export type OrderStatus = 'preparing' | 'ready' | 'cancelled' | 'delivered';
 
 export const esc = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
@@ -156,9 +156,18 @@ export interface MenuItem {
   sortOrder?: number;
 }
 
+export interface ExternalOrderItem {
+  name: string;
+  quantity: number;
+  allergens: string[];
+  imageUrl: string;
+}
+
 export interface ExternalOrder {
   id: string;
   number: string;
+  items: ExternalOrderItem[];
+  itemsCount?: number;
   customerName: string;
   phone: string;
   itemName: string;
@@ -239,11 +248,44 @@ export async function deleteMenuItem(id: string): Promise<void> {
   if (!data?.ok) throw new Error(extReason(data?.reason));
 }
 
-export async function listExternalOrders(): Promise<ExternalOrder[]> {
-  const data = (await rpc('admin_list_external_orders', {})) as ExternalOrder[];
-  return Array.isArray(data) ? data : [];
+export async function listExternalOrders(filter?: { status?: string; search?: string }): Promise<ExternalOrder[]> {
+  const data = (await rpc('admin_list_external_orders', {
+    p_status: filter?.status || null,
+    p_search: filter?.search || null,
+    p_limit: 200,
+  })) as Array<Record<string, unknown>>;
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => normalizeExternalOrder(row));
 }
 
+/** يحول صف قاعدة البيانات (introspection RPC) إلى ExternalOrder. */
+export function normalizeExternalOrder(row: Record<string, unknown>): ExternalOrder {
+  const items = Array.isArray(row.items) ? (row.items as Array<Record<string, unknown>>) : [];
+  return {
+    id: String(row.id ?? ''),
+    number: String(row.number ?? ''),
+    customerName: String(row.customerName ?? ''),
+    phone: String(row.phone ?? ''),
+    itemName: String(row.itemName ?? ''),
+    quantity: Number(row.quantity ?? 1),
+    items: items.map((it) => ({
+      name: String(it.name ?? ''),
+      quantity: Number(it.quantity ?? 1),
+      allergens: Array.isArray(it.allergens) ? it.allergens.map((a) => String(a)) : [],
+      imageUrl: String(it.imageUrl ?? ''),
+    })),
+    itemsCount: Number(row.itemsCount ?? items.reduce((sum, it) => sum + Number(it.quantity ?? 0), 0)),
+    deliveryType: (row.deliveryType === 'pickup' ? 'pickup' : 'delivery') as 'delivery' | 'pickup',
+    address: String(row.address ?? ''),
+    lat: row.lat === null || row.lat === undefined ? null : Number(row.lat),
+    lng: row.lng === null || row.lng === undefined ? null : Number(row.lng),
+    mapsUrl: String(row.mapsUrl ?? ''),
+    notes: String(row.notes ?? ''),
+    status: (row.status ?? 'preparing') as ExternalOrder['status'],
+    createdAt: String(row.createdAt ?? ''),
+    updatedAt: String(row.updatedAt ?? ''),
+  };
+}
 export async function setExternalStatus(number: string, status: ExternalOrder['status']): Promise<void> {
   const data = (await rpc('admin_set_external_status', { p_number: number, p_status: status })) as {
     ok?: boolean;
@@ -305,4 +347,128 @@ export async function getExternalOrderStatus(
   }
 }
 
+/* ===== الطلبات الداخلية + السجل + الموظفون + الإحصاءات (0009) ===== */
 
+export interface InternalOrder {
+  number: string;
+  status: OrderStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditRow {
+  entity: string;
+  entityId: string;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  actorEmail: string | null;
+  createdAt: string;
+}
+
+export interface StaffRow {
+  userId: string;
+  email: string | null;
+  role: 'admin' | 'staff';
+  createdAt: string;
+}
+
+export interface AdminStats {
+  pending: number;
+  ready: number;
+  today: number;
+  itemsToday: number;
+  topItems: Array<{ name: string; qty: number }>;
+}
+
+/** قائمة الطلبات الداخلية (حالة الفاتورة). */
+export async function listInternalOrders(filter?: { status?: string; search?: string }): Promise<InternalOrder[]> {
+  const data = (await rpc('admin_list_orders', {
+    p_status: filter?.status || null,
+    p_search: filter?.search || null,
+    p_limit: 200,
+  })) as Array<Record<string, unknown>>;
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => ({
+    number: String(row.number ?? ''),
+    status: (row.status ?? 'preparing') as OrderStatus,
+    createdAt: String(row.createdAt ?? ''),
+    updatedAt: String(row.updatedAt ?? ''),
+  }));
+}
+
+/** سجل تغير حالات الطلبات. */
+export async function listAudit(limit = 100): Promise<AuditRow[]> {
+  const data = (await rpc('admin_list_audit', { p_limit: limit })) as Array<Record<string, unknown>>;
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => ({
+    entity: String(row.entity ?? ''),
+    entityId: String(row.entityId ?? ''),
+    action: String(row.action ?? ''),
+    fromStatus: row.fromStatus ? String(row.fromStatus) : null,
+    toStatus: row.toStatus ? String(row.toStatus) : null,
+    actorEmail: row.actorEmail ? String(row.actorEmail) : null,
+    createdAt: String(row.createdAt ?? ''),
+  }));
+}
+
+/** قائمة الموظفين (للمدير). */
+export async function listStaff(): Promise<StaffRow[]> {
+  const data = (await rpc('admin_list_staff', {})) as Array<Record<string, unknown>>;
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => ({
+    userId: String(row.userId ?? ''),
+    email: row.email ? String(row.email) : null,
+    role: (row.role === 'admin' ? 'admin' : 'staff') as 'admin' | 'staff',
+    createdAt: String(row.createdAt ?? ''),
+  }));
+}
+
+/** إضافة موظف بالبريد (يجب أن يكون مسجلا في Supabase). */
+export async function addStaff(email: string): Promise<void> {
+  const data = (await rpc('admin_add_staff', { p_email: email })) as { ok?: boolean; reason?: string };
+  if (!data?.ok) throw new Error(staffReason(data?.reason));
+}
+
+/** إزالة موظف. */
+export async function removeStaff(userId: string): Promise<void> {
+  const data = (await rpc('admin_remove_staff', { p_user_id: userId })) as { ok?: boolean; reason?: string };
+  if (!data?.ok) throw new Error(staffReason(data?.reason));
+}
+
+/** إحصاءات سريعة للوحة. */
+export async function adminStats(): Promise<AdminStats> {
+  const data = (await rpc('admin_stats', {})) as Record<string, unknown> | null;
+  if (!data) return { pending: 0, ready: 0, today: 0, itemsToday: 0, topItems: [] };
+  const top = Array.isArray(data.topItems) ? (data.topItems as Array<Record<string, unknown>>) : [];
+  return {
+    pending: Number(data.pending ?? 0),
+    ready: Number(data.ready ?? 0),
+    today: Number(data.today ?? 0),
+    itemsToday: Number(data.itemsToday ?? 0),
+    topItems: top.map((t) => ({ name: String(t.name ?? ''), qty: Number(t.qty ?? 0) })),
+  };
+}
+
+/** تفعيل/تعطيل منتج (نفد المخزون). */
+export async function setMenuActive(id: string, active: boolean): Promise<void> {
+  const data = (await rpc('admin_set_menu_active', { p_id: id, p_active: active })) as { ok?: boolean; reason?: string };
+  if (!data?.ok) throw new Error(extReason(data?.reason));
+}
+
+function staffReason(reason?: string): string {
+  switch (reason) {
+    case 'user-not-found':
+      return 'لا يوجد حساب بهذا البريد في Supabase.';
+    case 'last-admin':
+      return 'لا يمكن إزالة آخر مدير في النظام.';
+    case 'invalid-id':
+      return 'معرف غير صالح.';
+    case 'invalid-email':
+      return 'أدخل بريدا صحيحا.';
+    case 'not-admin':
+      return 'هذه العملية للمدير فقط.';
+    default:
+      return 'تعذر تنفيذ العملية.';
+  }
+}

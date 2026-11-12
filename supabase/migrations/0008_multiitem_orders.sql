@@ -1,9 +1,14 @@
 -- ======================================================================
 -- SANA — طلبات متعددة المنتجات (سلة) — 0008
 -- يتطلب: 0005_external_orders.sql (create_external_order + external_order_items)
--- يضيف: p_extra_items إلى create_external_order فيحفظ كل عناصر السلة
+-- يضيف: p_extra_items jsonb إلى create_external_order فيحفظ كل عناصر السلة
+-- ⚠️ مهم: شغّل 0005 أولاً ثم هذا الملف كاملاً مرة واحدة (SQL Editor ← Run).
 -- ======================================================================
 
+-- ١) إسقاط النسخة القديمة ذات التوقيع 11 وسيطاً (من 0005) إن وُجدت
+drop function if exists public.create_external_order(text, text, text, text, integer, text, text, double precision, double precision, text, text);
+
+-- ٢) إنشاء النسخة الجديدة ذات التوقيع 12 وسيطاً (مع p_extra_items jsonb)
 create or replace function public.create_external_order(
   p_customer_name text default null,
   p_phone text default null,
@@ -105,5 +110,10 @@ begin
   return jsonb_build_object('ok', true, 'number', v_number, 'orderId', v_order::text);
 end $$;
 
-revoke all on function public.create_external_order(text, text, text, text, integer, text, text, text, double precision, double precision, text, text) from PUBLIC, anon;
-grant execute on function public.create_external_order(text, text, text, text, integer, text, text, double precision, double precision, text, text) to anon, authenticated;
+-- ٣) منح الصلاحيات للنسخة الجديدة (12 وسيطاً)
+revoke all on function public.create_external_order(text, text, text, text, integer, jsonb, text, text, double precision, double precision, text, text) from PUBLIC, anon;
+grant execute on function public.create_external_order(text, text, text, text, integer, jsonb, text, text, double precision, double precision, text, text) to anon, authenticated;
+
+-- اختبار سريع بعد التشغيل (يجب أن يُرجع ok:true):
+-- select public.create_external_order('اختبار','0501234567',null,'قهوة عربية',1,'[]'::jsonb,'delivery','حي النرجس',null,null,null,'اختبار');
+
