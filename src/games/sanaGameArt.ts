@@ -2,12 +2,17 @@
  * «ألعاب سَنا» — صفحة منفصلة داخل لوحة اللعب:
  * تبويب 1: ارسم على فنجانك (مع مشاركة + لايكات + حذف الأدمن)
  * تبويب 2: اصطد الحبوب
+ * تبويب 3: ورديّة الباريستا
+ * تبويب 4: برج الأكواب
+ * تبويب 5: ادمج القهوة
  * يُكتب عبر editor فقط (بدون shell) لتفادي تلف ترميز العربية.
  */
 import { $, toast } from '../ui/dom.ts';
 import { isStaff } from '../net/admin.ts';
 import { publishArtwork, listArtworks, likeArtwork, deleteArtwork, artworkCardHtml, likedLocally, markLiked, type Artwork } from '../net/artwork.ts';
 import { startBaristaRush, stopBaristaRush, injectBaristaStyles } from './baristaRush.ts';
+import { startCupTower, stopCupTower, injectCupTowerStyles } from './cupTower.ts';
+import { startMergeCoffee, stopMergeCoffee, injectMergeCoffeeStyles } from './mergeCoffee.ts';
 
 const AR = (n: number): string => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
 const LOGO = new Path2D(
@@ -24,8 +29,8 @@ function injectStyle(): void {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-    .sana-games .sg-tabs{display:flex;gap:6px;margin-bottom:12px}
-    .sana-games .sg-tabs button{flex:1;font:inherit;font-weight:700;padding:11px 8px;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+    .sana-games .sg-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+    .sana-games .sg-tabs button{flex:1 1 auto;font:inherit;font-weight:700;font-size:13px;padding:10px 8px;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
     .sana-games .sg-tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
     .sana-games .sg-stage{background:var(--paper2);border:1px solid var(--line);border-radius:20px;padding:12px}
     .sana-games .sg-wrap{position:relative;width:100%;max-width:340px;margin:0 auto;aspect-ratio:1/1}
@@ -69,6 +74,8 @@ export function startSanaGameArt(): void {
         <button role="tab" id="sgT1" aria-selected="true">ارسم على فنجانك</button>
         <button role="tab" id="sgT2" aria-selected="false">اصطد الحبوب</button>
         <button role="tab" id="sgT3" aria-selected="false">ورديّة الباريستا</button>
+        <button role="tab" id="sgT4" aria-selected="false">برج الأكواب</button>
+        <button role="tab" id="sgT5" aria-selected="false">ادمج القهوة</button>
       </div>
       <section id="sgP1" class="sg-stage">
         <div class="sg-wrap">
@@ -103,6 +110,12 @@ export function startSanaGameArt(): void {
       <section id="sgP3" class="sg-stage" hidden>
         <div id="sgBarista"></div>
       </section>
+      <section id="sgP4" class="sg-stage" hidden>
+        <div id="sgCups"></div>
+      </section>
+      <section id="sgP5" class="sg-stage" hidden>
+        <div id="sgMerge"></div>
+      </section>
     </div>`;
 
   const latency = $<HTMLCanvasElement>('#sgLatte');
@@ -111,6 +124,9 @@ export function startSanaGameArt(): void {
   if (!latency || !guide || !game) return;
 
   injectBaristaStyles();
+  injectCupTowerStyles();
+  injectMergeCoffeeStyles();
+
   const baristaBox = $<HTMLElement>('#sgBarista');
   let baristaActive = false;
   const setBarista = (on: boolean): void => {
@@ -124,22 +140,48 @@ export function startSanaGameArt(): void {
     }
   };
 
-  const tab = (n: 1 | 2 | 3): void => {
-    const p1 = $<HTMLElement>('#sgP1');
-    const p2 = $<HTMLElement>('#sgP2');
-    const p3 = $<HTMLElement>('#sgP3');
-    if (p1) p1.hidden = n !== 1;
-    if (p2) p2.hidden = n !== 2;
-    if (p3) p3.hidden = n !== 3;
-    $('#sgT1')?.setAttribute('aria-selected', String(n === 1));
-    $('#sgT2')?.setAttribute('aria-selected', String(n === 2));
-    $('#sgT3')?.setAttribute('aria-selected', String(n === 3));
+  const cupsBox = $<HTMLElement>('#sgCups');
+  let cupsActive = false;
+  const setCups = (on: boolean): void => {
+    if (!cupsBox) return;
+    if (on && !cupsActive) {
+      cupsActive = true;
+      startCupTower(cupsBox, abort?.signal);
+    } else if (!on && cupsActive) {
+      cupsActive = false;
+      stopCupTower();
+    }
+  };
+
+  const mergeBox = $<HTMLElement>('#sgMerge');
+  let mergeActive = false;
+  const setMerge = (on: boolean): void => {
+    if (!mergeBox) return;
+    if (on && !mergeActive) {
+      mergeActive = true;
+      startMergeCoffee(mergeBox, abort?.signal);
+    } else if (!on && mergeActive) {
+      mergeActive = false;
+      stopMergeCoffee();
+    }
+  };
+
+  const tab = (n: 1 | 2 | 3 | 4 | 5): void => {
+    for (let i = 1; i <= 5; i++) {
+      const panel = $<HTMLElement>('#sgP' + i);
+      if (panel) panel.hidden = i !== n;
+      $('#sgT' + i)?.setAttribute('aria-selected', String(i === n));
+    }
     if (n !== 2) beanRunning = false;
     setBarista(n === 3);
+    setCups(n === 4);
+    setMerge(n === 5);
   };
   $('#sgT1')?.addEventListener('click', () => tab(1), sig);
   $('#sgT2')?.addEventListener('click', () => tab(2), sig);
   $('#sgT3')?.addEventListener('click', () => tab(3), sig);
+  $('#sgT4')?.addEventListener('click', () => tab(4), sig);
+  $('#sgT5')?.addEventListener('click', () => tab(5), sig);
   // تفعيل أول تبويب عند الفتح (يُليه مرة واحدة فقط عند الإقلاع)
   tab(1);
   /* ===== اللعبة 1: فنجان اللاتيه ===== */
@@ -547,6 +589,8 @@ export function startSanaGameArt(): void {
 /** ينظّف كل شيء عند إغلاق اللوحة أو فتح لعبة أخرى. */
 export function stopSanaGameArt(): void {
   stopBaristaRush();
+  stopCupTower();
+  stopMergeCoffee();
   beanRunning = false;
   cancelAnimationFrame(raf);
   raf = 0;
