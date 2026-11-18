@@ -5,6 +5,7 @@
  */
 import { $ } from '../ui/dom.ts';
 import { BONUS_LINE_1, BONUS_LINE_2 } from './baristaRush.ts';
+import { recordCasualScore } from '../net/scores.ts';
 
 const AR = (n: number): string => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
 const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -153,6 +154,8 @@ export function startCupTower(box: HTMLElement, signal?: AbortSignal): void {
       over = true;
       snd(150, 0.4, 'sawtooth', 0.05);
       store.set('sana_cups', best);
+      // تسجيل النقاط على الخادم (الخادم يضع السقف ويمنح XP)
+      void recordCasualScore('cupTower', score);
       return;
     }
     if (Math.abs(cur.x - t.x) < 5) {

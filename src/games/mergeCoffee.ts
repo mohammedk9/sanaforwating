@@ -5,6 +5,7 @@
  */
 import { $ } from '../ui/dom.ts';
 import { BONUS_LINE_1, BONUS_LINE_2 } from './baristaRush.ts';
+import { recordCasualScore } from '../net/scores.ts';
 
 const AR = (n: number): string => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
 
@@ -229,6 +230,8 @@ export function startMergeCoffee(box: HTMLElement, signal?: AbortSignal): void {
       dead = true;
       msg.innerHTML = 'انتهت الحركات، نقاطك ' + AR(score) + (won ? '' : '<br>الهدف: ادمج حتى تصل إلى شعار سنا');
       msg.hidden = false;
+      // تسجيل النقاط على الخادم (الخادم يضع السقف ويمنح XP)
+      void recordCasualScore('mergeCoffee', score);
     }
   };
 

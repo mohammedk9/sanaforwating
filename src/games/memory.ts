@@ -3,6 +3,7 @@
  * السلوك مطابق للملف الأصلي، مع الإبقاء على صف واحد من الأزواج كقيمة ثابتة.
  */
 import { $, $$ } from '../ui/dom.ts';
+import { recordCasualScore } from '../net/scores.ts';
 
 const ICONS = ['☕', '✦', '☕', '✿', '✦', '✿'];
 const TOTAL_PAIRS = 3;
@@ -53,7 +54,11 @@ export function startMemory(): void {
         const feedback = $('#memoryFeedback');
         opened = [];
         if (feedback) feedback.textContent = `الأزواج المكتشفة: ${matched} / ${TOTAL_PAIRS}`;
-        if (matched === TOTAL_PAIRS && feedback) feedback.textContent = 'رائع! أكملت التحدي 🎉';
+        if (matched === TOTAL_PAIRS && feedback) {
+          feedback.textContent = 'رائع! أكملت التحدي 🎉';
+          // تسجيل نقاط الذاكرة عند الإكمال (الخادم يمنح XP)
+          void recordCasualScore('memory', 30);
+        }
         return;
       }
 

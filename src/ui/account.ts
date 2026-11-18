@@ -12,6 +12,7 @@ import { $, toast } from './dom.ts';
 import { renderAdmin } from './admin.ts';
 import { hasSupabase } from '../env.ts';
 import { ensureSession } from '../net/supabase.ts';
+import { listPublicPrizes, type WeeklyPrize } from '../net/admin.ts';
 import {
   getAccount,
   linkAccount,
@@ -102,7 +103,7 @@ function render(): void {
     </div>
     <div class="card loyalty-form">
       <h3>الترتيب الأسبوعي</h3>
-      <p>أفضل المستخدمين بنقاط هذا الأسبوع.</p>
+      <p>أفضل المستخدمين بنقاط هذا الأسبوع — من المباريات وكل ألعاب سَنا.</p>
       <div id="leaderboard"><div style="font-size:11px;color:var(--muted)">جارٍ التحميل…</div></div>
     </div>`;
 
@@ -154,7 +155,10 @@ function renderTab(): void {
     <p>أضف بريداً وكلمة مرور لتحفظ XP وسجل مبارياتك، وتبقى نقاطك الحالية كما هي.</p>
     <div class="field" style="margin-bottom:10px">
       <label for="displayName">اسمك المعروض (اختياري)</label>
-      <input id="displayName" maxlength="16" placeholder="مثال: سارة">
+      <input id="displayName" maxlength="16" value="${profile?.displayName ?? ''}" placeholder="مثال: سارة">
+    </div>
+    <div style="margin-bottom:14px">
+      <button class="btn light" id="saveNameGuest" type="button">حفظ الاسم</button>
     </div>
     <div class="form-grid">
       <div class="field"><label for="playerEmail">البريد الإلكتروني</label><input id="playerEmail" type="email" placeholder="you@example.com"></div>
@@ -163,6 +167,9 @@ function renderTab(): void {
     <button class="btn" id="linkBtn">أنشئ حسابي واحفظ نقاطي</button>
     <button class="btn light" id="loginBtn" style="margin-inline-start:8px">لديّ حساب — دخول</button>
     <div class="notice" id="playerNotice"></div>`;
+
+  const saveBtn = $('#saveNameGuest') ?? $('#saveName');
+  saveBtn?.addEventListener('click', () => void handleSaveName());
 
   $('#linkBtn')?.addEventListener('click', () => void handleLink());
   $('#loginBtn')?.addEventListener('click', () => void handleLogin());
@@ -277,22 +284,45 @@ async function renderLeaderboard(): Promise<void> {
   const box = $('#leaderboard');
   if (!box) return;
 
-  const rows = await weeklyLeaderboard(20);
+  const [rows, prizes] = await Promise.all([weeklyLeaderboard(20), listPublicPrizes()]);
+
+  const prizesHtml = renderPrizesHtml(prizes);
+
   if (rows.length === 0) {
-    box.innerHTML = `<div style="font-size:11px;color:var(--muted)">لا توجد نتائج لهذا الأسبوع بعد. العب مباراة لتظهر هنا.</div>`;
+    box.innerHTML = `<div style="font-size:11px;color:var(--muted)">لا توجد نتائج لهذا الأسبوع بعد. العب أي مباراة أو لعبة من ألعاب سَنا لتظهر هنا باسمك.</div>${prizesHtml}`;
     return;
   }
 
-  box.innerHTML = rows
-    .map(
-      (row) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #eee7df">
+  box.innerHTML =
+    rows
+      .map(
+        (row) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #eee7df">
         <span style="font-size:12px">${
           row.place === 1 ? '🥇' : row.place === 2 ? '🥈' : row.place === 3 ? '🥉' : `${row.place}.`
         } ${row.displayName}</span>
         <strong style="font-size:12px;color:#2a7191">${row.weekPoints}</strong>
       </div>`,
+      )
+      .join('') + prizesHtml;
+}
+
+/** جوائز هذا الأسبوع (إن حدّدها المدير) — تظهر تحت الرانك. */
+function renderPrizesHtml(prizes: WeeklyPrize[]): string {
+  const filled = prizes.filter((p) => p.title.trim());
+  if (filled.length === 0) return '';
+  const medal = ['🥇', '🥈', '🥉'];
+  const items = filled
+    .map(
+      (p) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;font-size:12px">
+        <span>${medal[p.place - 1] ?? p.place + '.'} المركز ${p.place}</span>
+        <strong style="color:#a8794f">${p.title}${p.note ? ` — ${p.note}` : ''}</strong>
+      </div>`,
     )
     .join('');
+  return `<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">🎁 جوائز هذا الأسبوع</div>
+    ${items}
+  </div>`;
 }
 
 /** تهيئة صفحة الحساب (تُستدعى مرة من نقطة الدخول). */

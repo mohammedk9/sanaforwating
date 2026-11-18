@@ -3,6 +3,7 @@
  * محوّلة من نسخة HTML الأصلية إلى لغة التطبيق الحالية.
  */
 import { $ } from '../ui/dom.ts';
+import { recordCasualScore } from '../net/scores.ts';
 
 export const BONUS_LINE_1 = '🎁 اعرض هذه الشاشة للكاشير';
 export const BONUS_LINE_2 = 'واحصل على خصم على طلبك القادم';
@@ -224,6 +225,8 @@ function summary(): void {
   const bh = $('#bh');
   if (bh) bh.textContent = '';
   if (Q >= 0.6) [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => snd(f, 0.18, 'triangle'), i * 100));
+  // تسجيل النقاط على الخادم (نسبة الجودة 0..100؛ الخادم يمنح XP)
+  void recordCasualScore('baristaRush', p);
 }
 
 function bupd(dt: number): void {

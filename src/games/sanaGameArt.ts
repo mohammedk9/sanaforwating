@@ -8,6 +8,7 @@
  * يُكتب عبر editor فقط (بدون shell) لتفادي تلف ترميز العربية.
  */
 import { $, toast } from '../ui/dom.ts';
+import { recordCasualScore } from '../net/scores.ts';
 import { isStaff } from '../net/admin.ts';
 import { publishArtwork, listArtworks, likeArtwork, deleteArtwork, artworkCardHtml, likedLocally, markLiked, type Artwork } from '../net/artwork.ts';
 import { startBaristaRush, stopBaristaRush, injectBaristaStyles } from './baristaRush.ts';
@@ -551,6 +552,8 @@ export function startSanaGameArt(): void {
       gx.fillText('نقاطك: ' + AR(score), 170, 226);
       gx.fillText('المس الشاشة لبدء جولة جديدة', 170, 262);
       loopPrev = 0;
+      // تسجيل النقاط على الخادم (نقاط اصطياد الحبوب؛ الخادم يمنح XP)
+      void recordCasualScore('beanHunt', score);
       return;
     }
     raf = requestAnimationFrame(loop);

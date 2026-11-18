@@ -3,6 +3,7 @@
  * لا تدخل في احتساب نقاط المباراة التنافسية، وتبقى كما هي في الملف الأصلي.
  */
 import { $ } from '../ui/dom.ts';
+import { recordCasualScore } from '../net/scores.ts';
 
 export function startRiddle(): void {
   const title = $('#gameTitle');
@@ -27,6 +28,12 @@ export function startRiddle(): void {
     feedback.textContent = /الحفر|حفرة|الحفرة/.test(value)
       ? 'صحيح! الإجابة هي الحفرة 🎉'
       : 'حاول مرة أخرى. فكر في شيء يزداد حجماً كلما أخذت منه.';
+    if (/الحفر|حفرة|الحفرة/.test(value)) {
+      // تسجيل نقاط اللغز (لغز واحد صحيح؛ الخادم يمنح XP)
+      void recordCasualScore('riddle', 10);
+      const btn = $<HTMLButtonElement>('#checkRiddle');
+      if (btn) btn.disabled = true; // منع تكرار النقاط على نفس اللغز
+    }
   });
 }
 

@@ -5,7 +5,7 @@
 import { $, toast } from './dom.ts';
 import { hasSupabase } from '../env.ts';
 import { signIn, signOut } from '../net/account.ts';
-import { isStaff, listQuestions, upsertQuestion, deleteQuestion, setQuestionActive, listAdminMenu, upsertMenuItem, deleteMenuItem, setMenuActive, esc, type MenuItem } from '../net/admin.ts';
+import { isStaff, listQuestions, upsertQuestion, deleteQuestion, setQuestionActive, listAdminMenu, upsertMenuItem, deleteMenuItem, setMenuActive, adminListPrizes, adminSetPrize, adminDeletePrize, esc, type MenuItem } from '../net/admin.ts';
 import { renderOrdersSection, renderExtOrdersSection, renderStaffSection, renderAuditSection, renderStatsBar } from './adminOrders.ts';
 
 import { listArtworks, deleteArtwork, artworkCardHtml } from '../net/artwork.ts';
@@ -13,7 +13,7 @@ import { listArtworks, deleteArtwork, artworkCardHtml } from '../net/artwork.ts'
 let questions: Awaited<ReturnType<typeof listQuestions>> = [];
 let menuItems: MenuItem[] = [];
 let artworksCache: Awaited<ReturnType<typeof listArtworks>> = []; // للعرض
-let section: 'orders' | 'questions' | 'menu' | 'extOrders' | 'artworks' | 'staff' | 'audit' = 'orders';
+let section: 'orders' | 'questions' | 'menu' | 'extOrders' | 'artworks' | 'staff' | 'audit' | 'prizes' = 'orders';
 
 function notice(id: string, msg: string, kind: 'success' | 'error' = 'error'): void {
   const el = $(id);
@@ -77,6 +77,7 @@ export async function renderAdmin(): Promise<void> {
       <button class="btn ${section === 'questions' ? '' : 'light'}" id="secQuestions" style="flex:1">الأسئلة (${questions.length})</button>
       <button class="btn ${section === 'artworks' ? '' : 'light'}" id="secArtworks" style="flex:1">الرسومات (${artworksCache.length})</button>
       <button class="btn ${section === 'staff' ? '' : 'light'}" id="secStaff" style="flex:1">الموظفون</button>
+      <button class="btn ${section === 'prizes' ? '' : 'light'}" id="secPrizes" style="flex:1">الجوائز</button>
       <button class="btn ${section === 'audit' ? '' : 'light'}" id="secAudit" style="flex:1">السجل</button>
       <button class="btn outline" id="adminLogout">خروج</button>
     </div>
@@ -107,6 +108,10 @@ export async function renderAdmin(): Promise<void> {
     section = 'staff';
     void renderAdmin();
   });
+  $('#secPrizes')?.addEventListener('click', () => {
+    section = 'prizes';
+    void renderAdmin();
+  });
   $('#secAudit')?.addEventListener('click', () => {
     section = 'audit';
     void renderAdmin();
@@ -121,6 +126,7 @@ export async function renderAdmin(): Promise<void> {
   else if (section === 'extOrders') void renderExtOrdersSection(refresh);
   else if (section === 'artworks') renderArtworksSection();
   else if (section === 'staff') void renderStaffSection(refresh);
+  else if (section === 'prizes') void renderPrizesSection(refresh);
   else if (section === 'audit') void renderAuditSection(refresh);
   else renderQuestionsSection();
 }
@@ -143,6 +149,89 @@ function renderArtworksSection(): void {
         await renderAdmin();
       } catch (error) {
         notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الحذف.');
+      }
+    });
+  });
+}
+
+/** قسم الجوائز الأسبوعية — للمدير (تعيين نص الجائزة لكل مركز). */
+async function renderPrizesSection(refresh: () => Promise<void>): Promise<void> {
+  const body = $('#adminBody');
+  if (!body) return;
+  body.innerHTML = `<div style="font-size:11px;color:var(--muted)">جارٍ التحميل…</div>`;
+
+  const prizes = await adminListPrizes().catch(() => []);
+  const medals = ['🥇 المركز الأول', '🥈 المركز الثاني', '🥉 المركز الثالث'];
+  const cards = [1, 2, 3]
+    .map((place) => {
+      const current = prizes.find((p) => p.place === place);
+      return `
+      <div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:#fffdfa">
+        <strong style="font-size:13px">${medals[place - 1]}</strong>
+        <div class="field" style="margin-top:8px">
+          <label>نص الجائزة (مثل: فنجان مجاني، خصم 50٪)</label>
+          <input id="prizeTitle${place}" maxlength="120" value="${esc(current?.title ?? '')}" placeholder="اكتب الجائزة…">
+        </div>
+        <div class="field" style="margin-top:6px">
+          <label>ملاحظة (اختياري)</label>
+          <input id="prizeNote${place}" maxlength="160" value="${esc(current?.note ?? '')}" placeholder="تفاصيل إضافية…">
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn" data-prize-save="${place}">حفظ</button>
+          ${current ? `<button class="btn outline" data-prize-del="${place}">إلغاء الجائزة</button>` : ''}
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  body.innerHTML = `
+    <p style="font-size:11px;color:var(--muted);margin-top:0">
+      جوائز هذا الأسبوع لأصحاب المراكز الثلاثة الأولى في الرانك. الرانك يُصفّر تلقائياً كل أسبوع، وتغيّر الجوائز متى شئت.
+    </p>
+    ${cards}
+    <div class="notice" id="adminNotice"></div>`;
+
+  body.querySelectorAll<HTMLButtonElement>('[data-prize-save]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const place = Number(b.dataset.prizeSave);
+      const title = ($<HTMLInputElement>(`#prizeTitle${place}`)?.value ?? '').trim();
+      const note = ($<HTMLInputElement>(`#prizeNote${place}`)?.value ?? '').trim();
+      if (!title) {
+        notice('#adminNotice', 'اكتب نص الجائزة أولاً.');
+        return;
+      }
+      busy(b, true, 'جار…');
+      try {
+        const week = new Date();
+        const day = (week.getUTCDay() + 6) % 7; // الاثنين = 0
+        week.setUTCDate(week.getUTCDate() - day);
+        const weekStr = week.toISOString().slice(0, 10);
+        await adminSetPrize({ week: weekStr, place, title, note });
+        toast('تم حفظ الجائزة');
+        await refresh();
+      } catch (error) {
+        notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الحفظ.');
+        busy(b, false);
+      }
+    });
+  });
+
+  body.querySelectorAll<HTMLButtonElement>('[data-prize-del]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const place = Number(b.dataset.prizeDel);
+      if (!window.confirm('إلغاء هذه الجائزة؟')) return;
+      busy(b, true, 'جار…');
+      try {
+        const week = new Date();
+        const day = (week.getUTCDay() + 6) % 7;
+        week.setUTCDate(week.getUTCDate() - day);
+        const weekStr = week.toISOString().slice(0, 10);
+        await adminDeletePrize(weekStr, place);
+        toast('تم إلغاء الجائزة');
+        await refresh();
+      } catch (error) {
+        notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الإلغاء.');
+        busy(b, false);
       }
     });
   });

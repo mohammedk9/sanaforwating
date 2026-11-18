@@ -472,3 +472,80 @@ function staffReason(reason?: string): string {
       return 'تعذر تنفيذ العملية.';
   }
 }
+/* ===== الجوائز الأسبوعية (0011) ===== */
+
+export interface WeeklyPrize {
+  place: number;
+  title: string;
+  note: string;
+}
+
+/** جوائز الأسبوع الحالي (ل أي مستخدم مسجّل). */
+export async function listPublicPrizes(): Promise<WeeklyPrize[]> {
+  if (!hasSupabase()) return [];
+  try {
+    const data = (await rpc('read_public_prizes', {})) as Array<Record<string, unknown>>;
+    if (!Array.isArray(data)) return [];
+    return data.map((row) => ({
+      place: Number(row.place ?? 0),
+      title: String(row.title ?? ''),
+      note: String(row.note ?? ''),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** (للمدير) عرض جوائز أسبوع معيّن. */
+export async function adminListPrizes(week?: string): Promise<WeeklyPrize[]> {
+  const data = (await rpc('admin_list_prizes', { p_week: week ?? null })) as {
+    ok?: boolean;
+    prizes?: Array<Record<string, unknown>>;
+  };
+  const rows = Array.isArray(data?.prizes) ? data!.prizes! : [];
+  return rows.map((row) => ({
+    place: Number(row.place ?? 0),
+    title: String(row.title ?? ''),
+    note: String(row.note ?? ''),
+  }));
+}
+
+/** (للمدير) تعيين/تحديث جائزة مركز (1..3) لأسبوع. */
+export async function adminSetPrize(input: {
+  week: string;
+  place: number;
+  title: string;
+  note?: string;
+}): Promise<void> {
+  const data = (await rpc('admin_set_prize', {
+    p_week: input.week,
+    p_place: input.place,
+    p_title: input.title,
+    p_note: input.note ?? null,
+  })) as { ok?: boolean; reason?: string };
+  if (!data?.ok) throw new Error(prizeReason(data?.reason));
+}
+
+/** (للمدير) حذف جائزة مركز. */
+export async function adminDeletePrize(week: string, place: number): Promise<void> {
+  const data = (await rpc('admin_delete_prize', { p_week: week, p_place: place })) as {
+    ok?: boolean;
+    reason?: string;
+  };
+  if (!data?.ok) throw new Error(prizeReason(data?.reason));
+}
+
+function prizeReason(reason?: string): string {
+  switch (reason) {
+    case 'invalid-place':
+      return 'المركز يجب أن يكون 1 أو 2 أو 3.';
+    case 'title-too-long':
+      return 'نص الجائزة طويل جداً (120 حرفاً كحد أقصى).';
+    case 'not-admin':
+      return 'هذه العملية للمدير فقط.';
+    case 'not-staff':
+      return 'ليس لديك صلاحية موظف.';
+    default:
+      return 'تعذّر تنفيذ العملية.';
+  }
+}

@@ -63,11 +63,51 @@ export async function saveDisplayName(displayName: string): Promise<void> {
   if (!account) throw new Error('لا توجد جلسة.');
 
   const clean = displayName.trim().slice(0, 16);
-  const { error } = await supabase()
-    .from('profiles')
-    .upsert({ id: account.id, display_name: clean }, { onConflict: 'id' });
+  if (clean.length < 2) throw new Error('الاسم قصير جداً (حرفان على الأقل).');
 
-  if (error) throw new Error('تعذّر حفظ الاسم. حاول مرة أخرى.');
+  // نجرّب التحديث أولاً (الحالة الأكثر شيوعاً: صف شخصي موجود)، ثم الإدراج إن لم يوجد.
+  // لماذا؟ بعض إعدادات RLS/الأعمدة تسمح بالتحديث لكن ليس الإدراج (أو العكس)،
+  // لذا استخدام upsert وحده قد يفشل بصمت لأحد السببين. التحديث ثم الإدراج أوضح وأدق تشخيصاً.
+  const { data: existing, error: readError } = await supabase()
+    .from('profiles')
+    .select('id')
+    .eq('id', account.id)
+    .maybeSingle();
+
+  // خطأ القراءة (RLS/صلاحيات) نُظهره مباشرة لأنه يكشف السبب الجذري
+  if (readError) throw new Error(translateProfileError(readError.message));
+
+  if (existing) {
+    const { error } = await supabase()
+      .from('profiles')
+      .update({ display_name: clean })
+      .eq('id', account.id);
+    if (error) throw new Error(translateProfileError(error.message));
+    return;
+  }
+
+  const { error: insertError } = await supabase()
+    .from('profiles')
+    .insert({ id: account.id, display_name: clean });
+  if (insertError) throw new Error(translateProfileError(insertError.message));
+}
+
+/** رسائل عربية أوضح لأخطاء جدول profiles الشائعة (تساعد على التشخيص). */
+function translateProfileError(message: string): string {
+  const text = (message || '').toLowerCase();
+  if (text.includes('row-level security') || text.includes('violates row-level')) {
+    return 'رفض الخادم الحفظ (RLS): تأكد أن سياسات profiles مفعّلة في هجرة 0001.';
+  }
+  if (text.includes('permission denied') || text.includes('privilege')) {
+    return 'لا توجد صلاحية على جدول profiles: شغّل الـ grants في هجرة 0001 (insert/update على display_name).';
+  }
+  if (text.includes('jwt') || text.includes('anonymous') || text.includes('not authenticated')) {
+    return 'الجلسة غير صالحة. سجّل الدخول/الخروج ثم أعد المحاولة.';
+  }
+  if (text.includes('duplicate') || text.includes('unique')) {
+    return 'الملف الشخصي موجود بالفعل. حدّث الصفحة ثم أعد المحاولة.';
+  }
+  return 'تعذّر حفظ الاسم: ' + (message || 'خطأ غير معروف.');
 }
 
 /**
