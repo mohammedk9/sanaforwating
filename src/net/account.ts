@@ -134,31 +134,50 @@ export async function signIn(email: string, password: string): Promise<void> {
 }
 
 /**
- * إرسال رمز دخول إلى البريد (بدون كلمة مرور).
- * يُستخدم لدخول الإدارة بالبريد فقط: يرسل Supabase رمزاً من 6 أرقام لرابط البريد.
- * shouldCreateUser: false يمنع إنشاء حساب جديد لأي بريد ⇒ الدخول محصور بالمستخدم الموجود.
+ * إرسال رابط دخول سحري إلى البريد (بدون رقم تحقق).
+ * عند الضغط على الرابط في البريد يعود المستخدم إلى الموقع وتُلتقط الجلسة تلقائياً.
+ * shouldCreateUser: false يمنع إنشاء حساب جديد ⇒ الدخول محصور بالمستخدم الموجود.
+ * appUrl: الرابط الذي يعود إليه المستخدم بعد الضغط (افتراضاً صفحة الحساب).
  */
-export async function sendLoginOtp(email: string): Promise<void> {
+export async function sendMagicLink(email: string, redirectTo?: string): Promise<void> {
   const clean = email.trim();
   if (!clean) throw new Error('أدخل البريد الإلكتروني.');
   const { error } = await supabase().auth.signInWithOtp({
     email: clean,
-    options: { shouldCreateUser: false },
+    options: {
+      shouldCreateUser: false,
+      emailRedirectTo: redirectTo ?? defaultRedirect(),
+    },
   });
   if (error) throw new Error(translateAuthError(error.message));
 }
 
-/** التحقق من رمز الدخول المكوّن من 6 أرقام وإتمام الدخول. */
-export async function verifyLoginOtp(email: string, token: string): Promise<void> {
-  const clean = email.trim();
-  const code = token.trim();
-  if (!clean || !code) throw new Error('أدخل البريد والرمز المكوّن من 6 أرقام.');
-  const { error } = await supabase().auth.verifyOtp({
-    email: clean,
-    token: code,
-    type: 'email',
-  });
-  if (error) throw new Error(translateAuthError(error.message));
+/**
+ * إتمام دخول الرابط السحري عند الهبوط على الموقع.
+ * يستدعى مرة عند الإقلاع: إن كان الرابط يحتوي علامة الدخول (auth=admin) ينتظر
+ * التقاط الجلسة من الرابط، ثم ينظّف الرابط حتى لا يتكرر عند التحديث.
+ * يعيد true إن اكتمل دخول فعلي (توجد جلسة).
+ */
+export async function completeMagicLinkRedirect(): Promise<boolean> {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('auth') !== 'admin') return false;
+
+  // إنشاء العميل أولاً يفعّل التقاط الجلسة من رابط URL (detectSessionInUrl).
+  const db = supabase();
+  const { data } = await db.auth.getSession();
+
+  // تنظيف علامة الدخول من الرابط كي لا يُعاد التوجيه عند كل تحديث.
+  params.delete('auth');
+  const qs = params.toString();
+  window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+
+  return !!data.session;
+}
+
+/** رابط العودة الافتراضي: نفس الصفحة الحالية مع علامة لفتح لوحة الإدارة. */
+function defaultRedirect(): string {
+  const base = window.location.origin + window.location.pathname;
+  return base + '?auth=admin';
 }
 
 /** تعيين/تغيير كلمة مرور الحساب الحالي (يتطلب جلسة نشطة). */
