@@ -334,13 +334,3 @@ export function initAccountView(): void {
     })();
   });
 }
-
-/**
- * يفتح لوحة الإدارة مباشرة (يُستخدم بعد دخول الرابط السحري).
- * يضبط التبويب على «الإدارة» إن كان المستخدم موظفاً، ثم يرسم الصفحة.
- */
-export async function openAdminPanel(): Promise<void> {
-  await loadState();
-  tab = 'admin';
-  render();
-}

@@ -4,7 +4,7 @@
  */
 import { $, toast } from './dom.ts';
 import { hasSupabase } from '../env.ts';
-import { signOut, sendMagicLink, setPassword } from '../net/account.ts';
+import { signIn, signOut, setPassword } from '../net/account.ts';
 import { isStaff, listQuestions, upsertQuestion, deleteQuestion, setQuestionActive, listAdminMenu, upsertMenuItem, deleteMenuItem, setMenuActive, adminListPrizes, adminSetPrize, adminDeletePrize, esc, type MenuItem } from '../net/admin.ts';
 import { renderOrdersSection, renderExtOrdersSection, renderStaffSection, renderAuditSection, renderStatsBar } from './adminOrders.ts';
 
@@ -51,19 +51,19 @@ export async function renderAdmin(): Promise<void> {
   if (!staff) {
     box.innerHTML = `
       <h3>دخول الإدارة</h3>
-      <p>مخصّص لموظفي المحل. أدخل بريدك لتصلك رسالة فيها <b>رابط دخول</b> — اضغط الرابط مرة واحدة فيُعاد توجيهك إلى لوحة الإدارة مباشرة دون كتابة أي رمز.</p>
-      <div class="field">
-        <label for="adminEmail">البريد الإلكتروني</label>
-        <input id="adminEmail" type="email" placeholder="name@cafe.com" autocomplete="email">
+      <p>مخصّص لموظفي المحل. يتم التحقق من صلاحية الموظف على الخادم قبل أي إجراء.</p>
+      <div class="form-grid">
+        <div class="field"><label for="adminEmail">البريد الإلكتروني</label><input id="adminEmail" type="email" placeholder="name@cafe.com" autocomplete="email"></div>
+        <div class="field"><label for="adminPassword">كلمة المرور</label><input id="adminPassword" type="password" placeholder="••••••••" autocomplete="current-password"></div>
       </div>
-      <button class="btn" id="adminSendLink">أرسل رابط الدخول</button>
+      <button class="btn" id="adminLogin">دخول الإدارة</button>
       <div class="notice" id="adminNotice"></div>
       <p style="font-size:10px;color:var(--muted);margin-top:12px">
-        افتح الرسالة من <b>نفس الجهاز/المتصفح</b> الذي بدأت منه، واضغط «Login / دخول». إن لم تصل الرسالة تحقق من مجلد الرسائل غير المرغوب فيها.
+        إن ظهرت لك رسالة «ليس لديك صلاحية»، أضِف حسابك في Supabase ← جدول staff_members ← user_id = معرّف حسابك.
       </p>`;
-    $('#adminSendLink')?.addEventListener('click', () => void handleSendLink());
-    $('#adminEmail')?.addEventListener('keydown', (e) => {
-      if ((e as KeyboardEvent).key === 'Enter') void handleSendLink();
+    $('#adminLogin')?.addEventListener('click', () => void handleAdminLogin());
+    $('#adminPassword')?.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter') void handleAdminLogin();
     });
     return;
   }
@@ -296,22 +296,25 @@ async function renderPrizesSection(refresh: () => Promise<void>): Promise<void> 
   });
 }
 
-/** إرسال رابط الدخول السحري إلى بريد الإدارة. */
-async function handleSendLink(): Promise<void> {
+/** دخول الإدارة بالبريد وكلمة المرور. */
+async function handleAdminLogin(): Promise<void> {
   const email = ($<HTMLInputElement>('#adminEmail')?.value ?? '').trim();
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    notice('#adminNotice', 'أدخل بريداً إلكترونياً صحيحاً.');
+  const password = ($<HTMLInputElement>('#adminPassword')?.value ?? '').trim();
+  if (!email || !password) {
+    notice('#adminNotice', 'أدخل البريد وكلمة المرور.');
     return;
   }
-  const btn = $<HTMLButtonElement>('#adminSendLink');
-  if (btn) busy(btn, true);
   try {
-    await sendMagicLink(email);
-    notice('#adminNotice', 'أرسلنا لك رابط الدخول. افتح الرسالة واضغط الرابط لتدخل مباشرة إلى لوحة الإدارة.', 'success');
+    await signIn(email, password);
+    const staff = await isStaff();
+    if (!staff) {
+      notice('#adminNotice', 'تم الدخول لكن هذا الحساب ليس موظفاً. أضِفه إلى staff_members.');
+      return;
+    }
+    toast('مرحباً بك في لوحة الإدارة');
+    await renderAdmin();
   } catch (error) {
-    notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر إرسال الرابط.');
-  } finally {
-    if (btn) busy(btn, false);
+    notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الدخول.');
   }
 }
 
