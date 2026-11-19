@@ -133,6 +133,41 @@ export async function signIn(email: string, password: string): Promise<void> {
   if (error) throw new Error(translateAuthError(error.message));
 }
 
+/**
+ * إرسال رمز دخول إلى البريد (بدون كلمة مرور).
+ * يُستخدم لدخول الإدارة بالبريد فقط: يرسل Supabase رمزاً من 6 أرقام لرابط البريد.
+ * shouldCreateUser: false يمنع إنشاء حساب جديد لأي بريد ⇒ الدخول محصور بالمستخدم الموجود.
+ */
+export async function sendLoginOtp(email: string): Promise<void> {
+  const clean = email.trim();
+  if (!clean) throw new Error('أدخل البريد الإلكتروني.');
+  const { error } = await supabase().auth.signInWithOtp({
+    email: clean,
+    options: { shouldCreateUser: false },
+  });
+  if (error) throw new Error(translateAuthError(error.message));
+}
+
+/** التحقق من رمز الدخول المكوّن من 6 أرقام وإتمام الدخول. */
+export async function verifyLoginOtp(email: string, token: string): Promise<void> {
+  const clean = email.trim();
+  const code = token.trim();
+  if (!clean || !code) throw new Error('أدخل البريد والرمز المكوّن من 6 أرقام.');
+  const { error } = await supabase().auth.verifyOtp({
+    email: clean,
+    token: code,
+    type: 'email',
+  });
+  if (error) throw new Error(translateAuthError(error.message));
+}
+
+/** تعيين/تغيير كلمة مرور الحساب الحالي (يتطلب جلسة نشطة). */
+export async function setPassword(password: string): Promise<void> {
+  if (password.length < 8) throw new Error('كلمة المرور قصيرة: استخدم 8 أحرف أو أكثر.');
+  const { error } = await supabase().auth.updateUser({ password });
+  if (error) throw new Error(translateAuthError(error.message));
+}
+
 /** إنشاء حساب جديد مستقل ثم الدخول به. */
 export async function signUp(email: string, password: string): Promise<{ needsConfirmation: boolean }> {
   const { data, error } = await supabase().auth.signUp({ email, password });
@@ -175,5 +210,18 @@ function translateAuthError(message: string): string {
   }
   if (text.includes('invalid email')) return 'صيغة البريد غير صحيحة.';
   if (text.includes('anonymous')) return 'جلسة اللعب الحالية غير صالحة. أعد تحميل الصفحة.';
+  if (text.includes('otp_expired') || text.includes('token has expired') || text.includes('expired'))
+    return 'انتهت صلاحية الرمز. اطلب رمزاً جديداً.';
+  if (text.includes('invalid token') || text.includes('token is invalid') || text.includes('invalid_otp'))
+    return 'الرمز غير صحيح. تأكد من الرمز المكوّن من 6 أرقام.';
+  if (text.includes('email not confirmed')) return 'لم يُؤكَّد البريد بعد. استخدم رمز الدخول لإتمام التأكيد.';
+  if (text.includes('signups not allowed') || text.includes('user not found') || text.includes('email address') && text.includes('not authorized'))
+    return 'هذا البريد غير مسجّل. لا يمكن الدخول إلا بحساب موجود.';
+  if (text.includes('rate limit') || text.includes('too many') || text.includes('security purposes'))
+    return 'محاولات كثيرة. انتظر دقيقة ثم اطلب رمزاً جديداً.';
+  if (text.includes('password should be') || (text.includes('password') && text.includes('characters')))
+    return 'كلمة المرور قصيرة: استخدم 8 أحرف أو أكثر.';
+  if (text.includes('same password') || text.includes('should be different'))
+    return 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.';
   return 'تعذّر إكمال العملية. تحقق من البيانات وحاول مرة أخرى.';
 }

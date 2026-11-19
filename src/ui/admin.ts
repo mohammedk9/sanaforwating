@@ -4,7 +4,7 @@
  */
 import { $, toast } from './dom.ts';
 import { hasSupabase } from '../env.ts';
-import { signIn, signOut } from '../net/account.ts';
+import { signOut, sendLoginOtp, verifyLoginOtp, setPassword } from '../net/account.ts';
 import { isStaff, listQuestions, upsertQuestion, deleteQuestion, setQuestionActive, listAdminMenu, upsertMenuItem, deleteMenuItem, setMenuActive, adminListPrizes, adminSetPrize, adminDeletePrize, esc, type MenuItem } from '../net/admin.ts';
 import { renderOrdersSection, renderExtOrdersSection, renderStaffSection, renderAuditSection, renderStatsBar } from './adminOrders.ts';
 
@@ -13,7 +13,7 @@ import { listArtworks, deleteArtwork, artworkCardHtml } from '../net/artwork.ts'
 let questions: Awaited<ReturnType<typeof listQuestions>> = [];
 let menuItems: MenuItem[] = [];
 let artworksCache: Awaited<ReturnType<typeof listArtworks>> = []; // للعرض
-let section: 'orders' | 'questions' | 'menu' | 'extOrders' | 'artworks' | 'staff' | 'audit' | 'prizes' = 'orders';
+let section: 'orders' | 'questions' | 'menu' | 'extOrders' | 'artworks' | 'staff' | 'audit' | 'prizes' | 'security' = 'orders';
 
 function notice(id: string, msg: string, kind: 'success' | 'error' = 'error'): void {
   const el = $(id);
@@ -51,17 +51,32 @@ export async function renderAdmin(): Promise<void> {
   if (!staff) {
     box.innerHTML = `
       <h3>دخول الإدارة</h3>
-      <p>مخصّص لموظفي المحل. يتم التحقق من صلاحية الموظف على الخادم قبل أي إجراء.</p>
-      <div class="form-grid">
-        <div class="field"><label for="adminEmail">البريد الإلكتروني</label><input id="adminEmail" type="email" placeholder="name@cafe.com"></div>
-        <div class="field"><label for="adminPassword">كلمة المرور</label><input id="adminPassword" type="password" placeholder="••••••••"></div>
+      <p>مخصّص لموظفي المحل. أدخل بريدك ليصلك رمز دخول من 6 أرقام، ويتم التحقق من صلاحية الموظف على الخادم قبل أي إجراء.</p>
+      <div class="field">
+        <label for="adminEmail">البريد الإلكتروني</label>
+        <input id="adminEmail" type="email" placeholder="name@cafe.com" autocomplete="email">
       </div>
-      <button class="btn" id="adminLogin">دخول الإدارة</button>
+      <button class="btn" id="adminSendOtp">أرسل رمز الدخول</button>
+      <div id="adminOtpFields" style="display:none;margin-top:14px">
+        <div class="field">
+          <label for="adminOtp">الرمز المكوّن من 6 أرقام</label>
+          <input id="adminOtp" inputmode="numeric" maxlength="6" placeholder="------" dir="ltr" style="letter-spacing:4px;text-align:center">
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="adminVerifyOtp">دخول</button>
+          <button class="btn light" id="adminResendOtp" type="button">إعادة إرسال الرمز</button>
+        </div>
+      </div>
       <div class="notice" id="adminNotice"></div>
       <p style="font-size:10px;color:var(--muted);margin-top:12px">
-        إن ظهرت لك رسالة «ليس لديك صلاحية»، أضِف حسابك في Supabase ← جدول staff_members ← user_id = معرّف حسابك.
+        إن لم يصلك البريد، تحقق من مجلد الرسائل غير المرغوب فيها، وتأكد أن حسابك مُضاف في جدول staff_members. بعد الدخول يمكنك تعيين رقم سري جديد من قسم «الأمان».
       </p>`;
-    $('#adminLogin')?.addEventListener('click', () => void handleAdminLogin());
+    $('#adminSendOtp')?.addEventListener('click', () => void handleSendOtp());
+    $('#adminResendOtp')?.addEventListener('click', () => void handleSendOtp());
+    $('#adminVerifyOtp')?.addEventListener('click', () => void handleVerifyOtp());
+    $('#adminOtp')?.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter') void handleVerifyOtp();
+    });
     return;
   }
 
@@ -79,6 +94,7 @@ export async function renderAdmin(): Promise<void> {
       <button class="btn ${section === 'staff' ? '' : 'light'}" id="secStaff" style="flex:1">الموظفون</button>
       <button class="btn ${section === 'prizes' ? '' : 'light'}" id="secPrizes" style="flex:1">الجوائز</button>
       <button class="btn ${section === 'audit' ? '' : 'light'}" id="secAudit" style="flex:1">السجل</button>
+      <button class="btn ${section === 'security' ? '' : 'light'}" id="secSecurity" style="flex:1">الأمان</button>
       <button class="btn outline" id="adminLogout">خروج</button>
     </div>
     <div id="adminBody"></div>`;
@@ -116,6 +132,10 @@ export async function renderAdmin(): Promise<void> {
     section = 'audit';
     void renderAdmin();
   });
+  $('#secSecurity')?.addEventListener('click', () => {
+    section = 'security';
+    void renderAdmin();
+  });
   $('#adminLogout')?.addEventListener('click', () => {
     void signOut().then(() => void renderAdmin());
     toast('تم تسجيل الخروج');
@@ -128,7 +148,58 @@ export async function renderAdmin(): Promise<void> {
   else if (section === 'staff') void renderStaffSection(refresh);
   else if (section === 'prizes') void renderPrizesSection(refresh);
   else if (section === 'audit') void renderAuditSection(refresh);
+  else if (section === 'security') renderSecuritySection();
   else renderQuestionsSection();
+}
+
+/** قسم الأمان — تعيين رقم سري جديد للحساب الحالي بعد الدخول بالبريد. */
+function renderSecuritySection(): void {
+  const body = $('#adminBody');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="card loyalty-form" style="margin-bottom:14px">
+      <h3>تعيين رقم سري جديد</h3>
+      <p>أنت مسجّل دخول عبر رمز البريد. عيّن كلمة مرور الآن لتتمكن من الدخول لاحقاً بالبريد وكلمة المرور أيضاً.</p>
+      <div class="field" style="margin-top:8px">
+        <label for="newPassword">كلمة المرور الجديدة</label>
+        <input id="newPassword" type="password" placeholder="8 أحرف على الأقل" autocomplete="new-password">
+      </div>
+      <div class="field" style="margin-top:8px">
+        <label for="newPassword2">تأكيد كلمة المرور</label>
+        <input id="newPassword2" type="password" placeholder="أعد كتابة كلمة المرور" autocomplete="new-password">
+      </div>
+      <button class="btn" id="savePassword">حفظ كلمة المرور</button>
+      <div class="notice" id="adminNotice"></div>
+    </div>`;
+  $('#savePassword')?.addEventListener('click', () => void handleSetPassword());
+}
+
+/** حفظ كلمة مرور جديدة للحساب الحالي. */
+async function handleSetPassword(): Promise<void> {
+  const btn = $<HTMLButtonElement>('#savePassword');
+  const p1 = ($<HTMLInputElement>('#newPassword')?.value ?? '').trim();
+  const p2 = ($<HTMLInputElement>('#newPassword2')?.value ?? '').trim();
+  if (p1.length < 8) {
+    notice('#adminNotice', 'كلمة المرور قصيرة: استخدم 8 أحرف أو أكثر.');
+    return;
+  }
+  if (p1 !== p2) {
+    notice('#adminNotice', 'كلمتا المرور غير متطابقتين.');
+    return;
+  }
+  if (btn) busy(btn, true);
+  try {
+    await setPassword(p1);
+    notice('#adminNotice', 'تم تعيين كلمة المرور بنجاح. يمكنك الآن الدخول بالبريد وكلمة المرور.', 'success');
+    const f1 = $<HTMLInputElement>('#newPassword');
+    const f2 = $<HTMLInputElement>('#newPassword2');
+    if (f1) f1.value = '';
+    if (f2) f2.value = '';
+  } catch (error) {
+    notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر حفظ كلمة المرور.');
+  } finally {
+    if (btn) busy(btn, false);
+  }
 }
 
 function renderArtworksSection(): void {
@@ -237,15 +308,34 @@ async function renderPrizesSection(refresh: () => Promise<void>): Promise<void> 
   });
 }
 
-async function handleAdminLogin(): Promise<void> {
+/** إرسال رمز الدخول إلى بريد الإدارة. */
+async function handleSendOtp(): Promise<void> {
   const email = ($<HTMLInputElement>('#adminEmail')?.value ?? '').trim();
-  const password = ($<HTMLInputElement>('#adminPassword')?.value ?? '').trim();
-  if (!email || !password) {
-    notice('#adminNotice', 'أدخل البريد وكلمة المرور.');
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    notice('#adminNotice', 'أدخل بريداً إلكترونياً صحيحاً.');
     return;
   }
   try {
-    await signIn(email, password);
+    await sendLoginOtp(email);
+    notice('#adminNotice', 'أرسلنا لك رمز دخول من 6 أرقام. تحقق من بريدك (ومجلد الرسائل غير المرغوب فيها).', 'success');
+    const fields = $<HTMLElement>('#adminOtpFields');
+    if (fields) fields.style.display = 'block';
+    $<HTMLInputElement>('#adminOtp')?.focus();
+  } catch (error) {
+    notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر إرسال الرمز.');
+  }
+}
+
+/** التحقق من الرمز وإتمام الدخول ثم التحقق من الصلاحية. */
+async function handleVerifyOtp(): Promise<void> {
+  const email = ($<HTMLInputElement>('#adminEmail')?.value ?? '').trim();
+  const token = ($<HTMLInputElement>('#adminOtp')?.value ?? '').trim();
+  if (!email || !token) {
+    notice('#adminNotice', 'أدخل البريد والرمز المكوّن من 6 أرقام.');
+    return;
+  }
+  try {
+    await verifyLoginOtp(email, token);
     const staff = await isStaff();
     if (!staff) {
       notice('#adminNotice', 'تم الدخول لكن هذا الحساب ليس موظفاً. أضِفه إلى staff_members.');
