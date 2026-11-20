@@ -39,28 +39,39 @@ function busy(btn: HTMLButtonElement, on: boolean, label?: string): void {
   }
 }
 export async function renderAdmin(): Promise<void> {
-  const box = $('#tabContent');
+  const box = $('#adminView');
   if (!box) return;
 
+  const hero = `
+    <div class="hero">
+      <div>
+        <h1>لوحة الإدارة.</h1>
+        <p>إدارة الطلبات والأسئلة والمنيو والجوائز — كل شيء في صفحة مستقلة.</p>
+      </div>
+      <div class="store-label">⚙ الإدارة</div>
+    </div>`;
+
   if (!hasSupabase()) {
-    box.innerHTML = `<div style="font-size:12px">إعدادات Supabase غير مكتملة (.env). لا يمكن فتح لوحة الإدارة.</div>`;
+    box.innerHTML = `${hero}<div class="card" style="font-size:13px">إعدادات Supabase غير مكتملة (.env). لا يمكن فتح لوحة الإدارة.</div>`;
     return;
   }
 
   const staff = await isStaff();
   if (!staff) {
-    box.innerHTML = `
-      <h3>دخول الإدارة</h3>
-      <p>مخصّص لموظفي المحل. يتم التحقق من صلاحية الموظف على الخادم قبل أي إجراء.</p>
-      <div class="form-grid">
-        <div class="field"><label for="adminEmail">البريد الإلكتروني</label><input id="adminEmail" type="email" placeholder="name@cafe.com" autocomplete="email"></div>
-        <div class="field"><label for="adminPassword">كلمة المرور</label><input id="adminPassword" type="password" placeholder="••••••••" autocomplete="current-password"></div>
-      </div>
-      <button class="btn" id="adminLogin">دخول الإدارة</button>
-      <div class="notice" id="adminNotice"></div>
-      <p style="font-size:10px;color:var(--muted);margin-top:12px">
-        إن ظهرت لك رسالة «ليس لديك صلاحية»، أضِف حسابك في Supabase ← جدول staff_members ← user_id = معرّف حسابك.
-      </p>`;
+    box.innerHTML = `${hero}
+      <section class="card admin-login-card">
+        <h3>دخول الإدارة</h3>
+        <p>مخصّص لموظفي المحل. يتم التحقق من صلاحية الموظف على الخادم قبل أي إجراء.</p>
+        <div class="form-grid">
+          <div class="field"><label for="adminEmail">البريد الإلكتروني</label><input id="adminEmail" type="email" placeholder="name@cafe.com" autocomplete="email"></div>
+          <div class="field"><label for="adminPassword">كلمة المرور</label><input id="adminPassword" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+        </div>
+        <button class="btn" id="adminLogin">دخول الإدارة</button>
+        <div class="notice" id="adminNotice"></div>
+        <p style="font-size:10px;color:var(--muted);margin-top:12px">
+          إن ظهرت لك رسالة «ليس لديك صلاحية»، أضِف حسابك في Supabase ← جدول staff_members ← user_id = معرّف حسابك.
+        </p>
+      </section>`;
     $('#adminLogin')?.addEventListener('click', () => void handleAdminLogin());
     $('#adminPassword')?.addEventListener('keydown', (e) => {
       if ((e as KeyboardEvent).key === 'Enter') void handleAdminLogin();
@@ -71,21 +82,21 @@ export async function renderAdmin(): Promise<void> {
   questions = await listQuestions().catch(() => []);
   menuItems = await listAdminMenu().catch(() => []);
   artworksCache = await listArtworks().catch(() => []);
-  box.innerHTML = `
+  box.innerHTML = `${hero}
     <div id="adminStats" class="admin-stats"></div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-      <button class="btn ${section === 'orders' ? '' : 'light'}" id="secOrders" style="flex:1">الطلبات</button>
-      <button class="btn ${section === 'extOrders' ? '' : 'light'}" id="secExtOrders" style="flex:1">الطلبات الخارجية</button>
-      <button class="btn ${section === 'menu' ? '' : 'light'}" id="secMenu" style="flex:1">المنيو</button>
-      <button class="btn ${section === 'questions' ? '' : 'light'}" id="secQuestions" style="flex:1">الأسئلة (${questions.length})</button>
-      <button class="btn ${section === 'artworks' ? '' : 'light'}" id="secArtworks" style="flex:1">الرسومات (${artworksCache.length})</button>
-      <button class="btn ${section === 'staff' ? '' : 'light'}" id="secStaff" style="flex:1">الموظفون</button>
-      <button class="btn ${section === 'prizes' ? '' : 'light'}" id="secPrizes" style="flex:1">الجوائز</button>
-      <button class="btn ${section === 'audit' ? '' : 'light'}" id="secAudit" style="flex:1">السجل</button>
-      <button class="btn ${section === 'security' ? '' : 'light'}" id="secSecurity" style="flex:1">الأمان</button>
+    <div class="admin-tabs">
+      <button class="btn ${section === 'orders' ? '' : 'light'}" id="secOrders">الطلبات</button>
+      <button class="btn ${section === 'extOrders' ? '' : 'light'}" id="secExtOrders">الطلبات الخارجية</button>
+      <button class="btn ${section === 'menu' ? '' : 'light'}" id="secMenu">المنيو</button>
+      <button class="btn ${section === 'questions' ? '' : 'light'}" id="secQuestions">الأسئلة (${questions.length})</button>
+      <button class="btn ${section === 'artworks' ? '' : 'light'}" id="secArtworks">الرسومات (${artworksCache.length})</button>
+      <button class="btn ${section === 'staff' ? '' : 'light'}" id="secStaff">الموظفون</button>
+      <button class="btn ${section === 'prizes' ? '' : 'light'}" id="secPrizes">الجوائز</button>
+      <button class="btn ${section === 'audit' ? '' : 'light'}" id="secAudit">السجل</button>
+      <button class="btn ${section === 'security' ? '' : 'light'}" id="secSecurity">الأمان</button>
       <button class="btn outline" id="adminLogout">خروج</button>
     </div>
-    <div id="adminBody"></div>`;
+    <div id="adminBody" class="admin-panel"></div>`;
   void renderStatsBar();
 
   $('#secOrders')?.addEventListener('click', () => {
@@ -213,86 +224,75 @@ function renderArtworksSection(): void {
   });
 }
 
-/** قسم الجوائز الأسبوعية — للمدير (تعيين نص الجائزة لكل مركز). */
+/** قسم الجوائز الأسبوعية — للمدير (جائزة واحدة موحّدة للمراكز الثلاثة الأولى). */
 async function renderPrizesSection(refresh: () => Promise<void>): Promise<void> {
   const body = $('#adminBody');
   if (!body) return;
   body.innerHTML = `<div style="font-size:11px;color:var(--muted)">جارٍ التحميل…</div>`;
 
   const prizes = await adminListPrizes().catch(() => []);
-  const medals = ['🥇 المركز الأول', '🥈 المركز الثاني', '🥉 المركز الثالث'];
-  const cards = [1, 2, 3]
-    .map((place) => {
-      const current = prizes.find((p) => p.place === place);
-      return `
-      <div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:#fffdfa">
-        <strong style="font-size:13px">${medals[place - 1]}</strong>
-        <div class="field" style="margin-top:8px">
-          <label>نص الجائزة (مثل: فنجان مجاني، خصم 50٪)</label>
-          <input id="prizeTitle${place}" maxlength="120" value="${esc(current?.title ?? '')}" placeholder="اكتب الجائزة…">
-        </div>
-        <div class="field" style="margin-top:6px">
-          <label>ملاحظة (اختياري)</label>
-          <input id="prizeNote${place}" maxlength="160" value="${esc(current?.note ?? '')}" placeholder="تفاصيل إضافية…">
-        </div>
-        <div style="display:flex;gap:6px;margin-top:8px">
-          <button class="btn" data-prize-save="${place}">حفظ</button>
-          ${current ? `<button class="btn outline" data-prize-del="${place}">إلغاء الجائزة</button>` : ''}
-        </div>
-      </div>`;
-    })
-    .join('');
+  // جائزة موحّدة واحدة (المركز الأول) — تنطبق على المراكز الثلاثة الأولى
+  const current = prizes.find((p) => p.place === 1);
 
   body.innerHTML = `
-    <p style="font-size:11px;color:var(--muted);margin-top:0">
-      جوائز هذا الأسبوع لأصحاب المراكز الثلاثة الأولى في الرانك. الرانك يُصفّر تلقائياً كل أسبوع، وتغيّر الجوائز متى شئت.
-    </p>
-    ${cards}
+    <div style="border:1px solid var(--line);border-radius:16px;padding:16px;background:#fffdfa;max-width:520px">
+      <strong style="font-size:14px">🎁 جائزة المراكز الثلاثة الأولى</strong>
+      <p style="font-size:11px;color:var(--muted);margin:6px 0 0">جائزة واحدة موحّدة لأصحاب المراكز الثلاثة الأولى في الرانك هذا الأسبوع. تظهر بجانب الترتيب.</p>
+      <div class="field" style="margin-top:12px">
+        <label>نص الجائزة (مثل: فنجان مجاني، خصم 50٪)</label>
+        <input id="prizeTitle" maxlength="120" value="${esc(current?.title ?? '')}" placeholder="اكتب الجائزة…">
+      </div>
+      <div class="field" style="margin-top:6px">
+        <label>ملاحظة (اختياري)</label>
+        <input id="prizeNote" maxlength="160" value="${esc(current?.note ?? '')}" placeholder="تفاصيل إضافية…">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn" id="prizeSave">حفظ الجائزة</button>
+        ${current ? `<button class="btn outline" id="prizeDel">إلغاء الجائزة</button>` : ''}
+      </div>
+    </div>
     <div class="notice" id="adminNotice"></div>`;
 
-  body.querySelectorAll<HTMLButtonElement>('[data-prize-save]').forEach((b) => {
-    b.addEventListener('click', async () => {
-      const place = Number(b.dataset.prizeSave);
-      const title = ($<HTMLInputElement>(`#prizeTitle${place}`)?.value ?? '').trim();
-      const note = ($<HTMLInputElement>(`#prizeNote${place}`)?.value ?? '').trim();
-      if (!title) {
-        notice('#adminNotice', 'اكتب نص الجائزة أولاً.');
-        return;
-      }
-      busy(b, true, 'جار…');
-      try {
-        const week = new Date();
-        const day = (week.getUTCDay() + 6) % 7; // الاثنين = 0
-        week.setUTCDate(week.getUTCDate() - day);
-        const weekStr = week.toISOString().slice(0, 10);
-        await adminSetPrize({ week: weekStr, place, title, note });
-        toast('تم حفظ الجائزة');
-        await refresh();
-      } catch (error) {
-        notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الحفظ.');
-        busy(b, false);
-      }
-    });
+  $('#prizeSave')?.addEventListener('click', async () => {
+    const title = ($<HTMLInputElement>('#prizeTitle')?.value ?? '').trim();
+    const note = ($<HTMLInputElement>('#prizeNote')?.value ?? '').trim();
+    if (!title) {
+      notice('#adminNotice', 'اكتب نص الجائزة أولاً.');
+      return;
+    }
+    const b = $<HTMLButtonElement>('#prizeSave');
+    if (b) busy(b, true, 'جار…');
+    try {
+      const week = new Date();
+      const day = (week.getUTCDay() + 6) % 7; // الاثنين = 0
+      week.setUTCDate(week.getUTCDate() - day);
+      const weekStr = week.toISOString().slice(0, 10);
+      // نحفظ على المركز الأول (مكان التخزين) كجائزة موحّدة
+      await adminSetPrize({ week: weekStr, place: 1, title, note });
+      toast('تم حفظ الجائزة');
+      await refresh();
+    } catch (error) {
+      notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الحفظ.');
+      if (b) busy(b, false);
+    }
   });
 
-  body.querySelectorAll<HTMLButtonElement>('[data-prize-del]').forEach((b) => {
-    b.addEventListener('click', async () => {
-      const place = Number(b.dataset.prizeDel);
-      if (!window.confirm('إلغاء هذه الجائزة؟')) return;
-      busy(b, true, 'جار…');
-      try {
-        const week = new Date();
-        const day = (week.getUTCDay() + 6) % 7;
-        week.setUTCDate(week.getUTCDate() - day);
-        const weekStr = week.toISOString().slice(0, 10);
-        await adminDeletePrize(weekStr, place);
-        toast('تم إلغاء الجائزة');
-        await refresh();
-      } catch (error) {
-        notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الإلغاء.');
-        busy(b, false);
-      }
-    });
+  $('#prizeDel')?.addEventListener('click', async () => {
+    if (!window.confirm('إلغاء الجائزة؟')) return;
+    const b = $<HTMLButtonElement>('#prizeDel');
+    if (b) busy(b, true, 'جار…');
+    try {
+      const week = new Date();
+      const day = (week.getUTCDay() + 6) % 7;
+      week.setUTCDate(week.getUTCDate() - day);
+      const weekStr = week.toISOString().slice(0, 10);
+      await adminDeletePrize(weekStr, 1);
+      toast('تم إلغاء الجائزة');
+      await refresh();
+    } catch (error) {
+      notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر الإلغاء.');
+      if (b) busy(b, false);
+    }
   });
 }
 

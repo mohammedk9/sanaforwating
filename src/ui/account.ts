@@ -10,6 +10,7 @@
  */
 import { $, toast } from './dom.ts';
 import { renderAdmin } from './admin.ts';
+import { showView } from './order.ts';
 import { hasSupabase } from '../env.ts';
 import { ensureSession } from '../net/supabase.ts';
 import { listPublicPrizes, type WeeklyPrize } from '../net/admin.ts';
@@ -27,7 +28,6 @@ import {
 
 let account: MyAccount | null = null;
 let profile: MyProfile | null = null;
-let tab: 'player' | 'admin' = 'player';
 let busy = false;
 
 /** يعيد قراءة الحساب والملف من الخادم (بعد ضمان وجود جلسة). */
@@ -95,9 +95,9 @@ function render(): void {
   view.innerHTML = `
     ${headerMarkup()}
     <div class="card loyalty-form" style="margin-bottom:16px">
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button class="btn ${tab === 'player' ? '' : 'light'}" id="tabPlayer" style="flex:1">مستخدم</button>
-        <button class="btn ${tab === 'admin' ? '' : 'light'}" id="tabAdmin" style="flex:1">الإدارة</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:16px">
+        <h3 style="margin:0">حسابك</h3>
+        <button class="btn light" id="tabAdmin">⚙ لوحة الإدارة</button>
       </div>
       <div id="tabContent"></div>
     </div>
@@ -107,13 +107,10 @@ function render(): void {
       <div id="leaderboard"><div style="font-size:11px;color:var(--muted)">جارٍ التحميل…</div></div>
     </div>`;
 
-  $('#tabPlayer')?.addEventListener('click', () => {
-    tab = 'player';
-    render();
-  });
   $('#tabAdmin')?.addEventListener('click', () => {
-    tab = 'admin';
-    render();
+    // لوحة الإدارة أصبحت صفحة مستقلة بعرض كامل
+    showView('admin');
+    void renderAdmin();
   });
   $('#saveName')?.addEventListener('click', () => void handleSaveName());
 
@@ -125,12 +122,6 @@ function render(): void {
 function renderTab(): void {
   const box = $('#tabContent');
   if (!box) return;
-
-  if (tab === 'admin') {
-    box.innerHTML = `<div style="font-size:11px;color:var(--muted)">جارٍ التحميل…</div>`;
-    void renderAdmin();
-    return;
-  }
 
   if (!account) {
     box.innerHTML = `<div style="font-size:12px;color:#8b8178">تعذّر الاتصال بالخادم. تحقق من إعدادات .env.</div>`;
@@ -336,26 +327,22 @@ async function renderLeaderboard(): Promise<void> {
 }
 
 /**
- * جائزة موحّدة تظهر بجانب الترتيب كصندوق واحد (لا مكرّرة لكل مركز).
- * تعرض الجوائز المحددة لهذا الأسبوع في كتلة واحدة أعلى القائمة.
+ * جائزة موحّدة واحدة تظهر بجانب الترتيب (تنطبق على المراكز الثلاثة الأولى).
+ * لا تُكرَّر لكل مركز — نص واحد فقط.
  */
 function renderUnifiedPrize(prizes: WeeklyPrize[]): string {
   const filled = prizes.filter((p) => p.title.trim());
   if (filled.length === 0) return '';
-  const medal = (place: number): string =>
-    place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}.`;
-  const items = filled
-    .slice(0, 3)
-    .map(
-      (p) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:12px">
-        <span style="opacity:.9">${medal(p.place)} المركز ${p.place}</span>
-        <strong style="color:#a8794f">${p.title}${p.note ? ` — ${p.note}` : ''}</strong>
-      </div>`,
-    )
-    .join('');
-  return `<div style="background:linear-gradient(180deg,#fff7ec,#fdf1e2);border:1px solid #f0e0cc;border-radius:14px;padding:12px 14px;margin-bottom:14px">
-    <div style="font-size:11px;color:#a8794f;font-weight:700;margin-bottom:6px">🎁 جوائز هذا الأسبوع</div>
-    ${items}
+  // جائزة واحدة موحّدة: نأخذ أول نص محدد (الأولوية للمركز الأول ثم من يليه)
+  const top = filled.find((p) => p.place === 1) ?? filled[0];
+  const title = top.title.trim();
+  const note = (top.note ?? '').trim();
+  return `<div style="background:linear-gradient(180deg,#fff7ec,#fdf1e2);border:1px solid #f0e0cc;border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
+    <div style="font-size:26px;line-height:1;flex:none">🎁</div>
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+      <span style="font-size:11px;color:#a8794f;font-weight:700">جائزة المراكز الثلاثة الأولى</span>
+      <strong style="font-size:14px;color:var(--ink)">${title}${note ? ` — ${note}` : ''}</strong>
+    </div>
   </div>`;
 }
 
@@ -366,5 +353,11 @@ export function initAccountView(): void {
       await loadState();
       render();
     })();
+  });
+
+  // زر «لوحة الإدارة» في القائمة الجانبية → صفحة الإدارة المستقلة
+  $('#navAdmin')?.addEventListener('click', () => {
+    showView('admin');
+    void renderAdmin();
   });
 }

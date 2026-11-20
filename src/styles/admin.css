@@ -47,3 +47,12 @@
 .admin-hint{font-size:11px;line-height:1.8;margin:8px 0 0}
 /* تبويبات اللوحة: صف متساوٍ وأنيق */
 #tabContent > div[style*="display:flex"]:has(#secOrders){gap:8px}
+/* ——— لوحة الإدارة كصفحة مستقلة (adminView) ——— */
+.admin-view{max-width:980px}
+.admin-view .hero{margin-bottom:18px}
+.admin-login-card{max-width:440px}
+.admin-panel{background:transparent}
+/* تبويبات اللوحة */
+.admin-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.admin-tabs .btn{flex:1 1 auto;min-width:96px;font-size:13px;padding:11px 14px;border-radius:12px;white-space:nowrap}
+.admin-tabs .btn.outline{flex:0 0 auto}

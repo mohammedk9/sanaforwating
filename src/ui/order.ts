@@ -124,23 +124,26 @@ function setStatus(status: OrderStatus): void {
 }
 
 /** التبديل بين الصفحات: الرئيسية (متابعة+ألعاب)، المنيو/الطلب، ألعاب سَنا، الولاء، الحساب. */
-export function showView(which: 'order' | 'menu' | 'sana' | 'loyalty' | 'account'): void {
+export function showView(which: 'order' | 'menu' | 'sana' | 'loyalty' | 'account' | 'admin'): void {
   const isLoyalty = which === 'loyalty';
   const isAccount = which === 'account';
   const isOrder = which === 'order';
   const isMenu = which === 'menu';
   const isSana = which === 'sana';
+  const isAdmin = which === 'admin';
 
   $('#homeView')?.classList.toggle('hidden', !isOrder);
   $('#menuView')?.classList.toggle('hidden', !isMenu);
   $('#sanaGamesView')?.classList.toggle('hidden', !isSana);
   $('#loyaltyView')?.classList.toggle('active', isLoyalty);
   $('#accountView')?.classList.toggle('active', isAccount);
+  $('#adminView')?.classList.toggle('active', isAdmin);
   $('#navOrder')?.classList.toggle('active', isOrder);
   $('#navMenu')?.classList.toggle('active', isMenu);
   $('#navSanaGames')?.classList.toggle('active', isSana);
   $('#navLoyalty')?.classList.toggle('active', isLoyalty);
   $('#navAccount')?.classList.toggle('active', isAccount);
+  $('#navAdmin')?.classList.toggle('active', isAdmin);
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (isSana) {
     // ننتظر إظهار الصفحة حتى يتوفر العنصر ثم نرسم اللعبة
