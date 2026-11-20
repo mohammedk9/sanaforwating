@@ -284,43 +284,77 @@ async function renderLeaderboard(): Promise<void> {
   const box = $('#leaderboard');
   if (!box) return;
 
-  const [rows, prizes] = await Promise.all([weeklyLeaderboard(20), listPublicPrizes()]);
+  const [rows, prizes, account] = await Promise.all([
+    weeklyLeaderboard(10),
+    listPublicPrizes(),
+    getAccount(),
+  ]);
 
-  const prizesHtml = renderPrizesHtml(prizes);
+  const myId = account?.id ?? '';
+  const myIndex = rows.findIndex((r) => r.playerId === myId);
+  const myRow = myIndex >= 0 ? rows[myIndex] : null;
 
-  if (rows.length === 0) {
-    box.innerHTML = `<div style="font-size:11px;color:var(--muted)">لا توجد نتائج لهذا الأسبوع بعد. العب أي مباراة أو لعبة من ألعاب سَنا لتظهر هنا باسمك.</div>${prizesHtml}`;
-    return;
+  const medal = (place: number): string =>
+    place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}.`;
+
+  // جائزة موحّدة تظهر بجانب الترتيب (لا داخل كل صف)
+  const prizesHtml = renderUnifiedPrize(prizes);
+
+  const rowsHtml = rows.length
+    ? rows
+        .map((row) => {
+          const isMe = row.playerId === myId;
+          return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px dashed #eee7df;border-radius:10px;${isMe ? 'background:#eef6fa;' : ''}">
+            <span style="font-size:12px;display:flex;align-items:center;gap:6px;min-width:0">
+              <span>${medal(row.place)}</span>
+              <span style="${isMe ? 'font-weight:700;color:#2a7191' : ''}">${row.displayName}${isMe ? ' (أنت)' : ''}</span>
+            </span>
+            <strong style="font-size:12px;color:#2a7191;white-space:nowrap">${row.weekPoints}</strong>
+          </div>`;
+        })
+        .join('')
+    : `<div style="font-size:11px;color:var(--muted)">لا توجد نتائج لهذا الأسبوع بعد. العب أي مباراة أو لعبة من ألعاب سَنا لتظهر هنا باسمك.</div>`;
+
+  // بطاقة «مركزك الحالي» — تظهر للاعب المسجّل الموجود في الترتيب
+  let myCardHtml = '';
+  if (myRow) {
+    myCardHtml = `<div style="margin-top:12px;background:#2a7191;color:#fff;border-radius:14px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:11px;opacity:.85">مركزك هذا الأسبوع</span>
+          <strong style="font-size:15px">${medal(myRow.place)} ${myRow.displayName}</strong>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:20px;font-weight:700">${myRow.weekPoints}</div>
+          <div style="font-size:10px;opacity:.8">نقطة</div>
+        </div>
+      </div>`;
+  } else if (account && !account.isAnonymous) {
+    myCardHtml = `<div style="margin-top:12px;font-size:11px;color:var(--muted);background:#f7f1e8;border-radius:12px;padding:10px 12px">لم تدخل الترتيب هذا الأسبوع بعد — العب مباراة لتظهر نتيجتك.</div>`;
   }
 
-  box.innerHTML =
-    rows
-      .map(
-        (row) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #eee7df">
-        <span style="font-size:12px">${
-          row.place === 1 ? '🥇' : row.place === 2 ? '🥈' : row.place === 3 ? '🥉' : `${row.place}.`
-        } ${row.displayName}</span>
-        <strong style="font-size:12px;color:#2a7191">${row.weekPoints}</strong>
-      </div>`,
-      )
-      .join('') + prizesHtml;
+  box.innerHTML = prizesHtml + rowsHtml + myCardHtml;
 }
 
-/** جوائز هذا الأسبوع (إن حدّدها المدير) — تظهر تحت الرانك. */
-function renderPrizesHtml(prizes: WeeklyPrize[]): string {
+/**
+ * جائزة موحّدة تظهر بجانب الترتيب كصندوق واحد (لا مكرّرة لكل مركز).
+ * تعرض الجوائز المحددة لهذا الأسبوع في كتلة واحدة أعلى القائمة.
+ */
+function renderUnifiedPrize(prizes: WeeklyPrize[]): string {
   const filled = prizes.filter((p) => p.title.trim());
   if (filled.length === 0) return '';
-  const medal = ['🥇', '🥈', '🥉'];
+  const medal = (place: number): string =>
+    place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}.`;
   const items = filled
+    .slice(0, 3)
     .map(
-      (p) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;font-size:12px">
-        <span>${medal[p.place - 1] ?? p.place + '.'} المركز ${p.place}</span>
+      (p) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:12px">
+        <span style="opacity:.9">${medal(p.place)} المركز ${p.place}</span>
         <strong style="color:#a8794f">${p.title}${p.note ? ` — ${p.note}` : ''}</strong>
       </div>`,
     )
     .join('');
-  return `<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">🎁 جوائز هذا الأسبوع</div>
+  return `<div style="background:linear-gradient(180deg,#fff7ec,#fdf1e2);border:1px solid #f0e0cc;border-radius:14px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-size:11px;color:#a8794f;font-weight:700;margin-bottom:6px">🎁 جوائز هذا الأسبوع</div>
     ${items}
   </div>`;
 }

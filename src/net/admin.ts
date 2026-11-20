@@ -219,6 +219,40 @@ export async function listAdminMenu(): Promise<MenuItem[]> {
   return (await rpc('admin_list_menu', {})) as MenuItem[];
 }
 
+/**
+ * رفع صورة منتج إلى Supabase Storage (bucket: menu-images) وإرجاع رابطها العام.
+ * يجب أن يكون المستخدم موظفاً (سياسة الرفع تتحقق من is_staff على الخادم).
+ */
+export async function uploadMenuItemImage(file: File): Promise<string> {
+  if (!hasSupabase()) throw new Error('رفع الصور غير متاح: إعدادات Supabase غير مكتملة.');
+  await ensureSession();
+
+  const db = supabase();
+  // تحقق من النوع والحجم قبل الرفع
+  const allowed = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+  if (!allowed.includes(file.type)) throw new Error('صيغة غير مدعومة. استخدم PNG أو JPG أو WEBP أو GIF.');
+  if (file.size > 3 * 1024 * 1024) throw new Error('حجم الصورة يتجاوز 3 ميجابايت.');
+
+  // اسم فريد لتجنّب الكتابة فوق ملفات أخرى
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const path = `menu/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const { error } = await db.storage.from('menu-images').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: file.type,
+  });
+  if (error) {
+    const msg = error.message || '';
+    if (msg.toLowerCase().includes('row-level') || msg.includes('policy') || msg.includes('denied'))
+      throw new Error('لا تملك صلاحية رفع الصور. تأكد أنك موظف وأن هجرة 0012 منفّذة.');
+    throw new Error('تعذّر رفع الصورة: ' + (msg || 'خطأ غير معروف.'));
+  }
+
+  const { data } = db.storage.from('menu-images').getPublicUrl(path);
+  return data.publicUrl;
+}
+
 
 export async function upsertMenuItem(input: {
   id?: string | null;

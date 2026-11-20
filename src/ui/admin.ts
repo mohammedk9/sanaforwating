@@ -5,7 +5,7 @@
 import { $, toast } from './dom.ts';
 import { hasSupabase } from '../env.ts';
 import { signIn, signOut, setPassword } from '../net/account.ts';
-import { isStaff, listQuestions, upsertQuestion, deleteQuestion, setQuestionActive, listAdminMenu, upsertMenuItem, deleteMenuItem, setMenuActive, adminListPrizes, adminSetPrize, adminDeletePrize, esc, type MenuItem } from '../net/admin.ts';
+import { isStaff, listQuestions, upsertQuestion, deleteQuestion, setQuestionActive, listAdminMenu, upsertMenuItem, deleteMenuItem, setMenuActive, adminListPrizes, adminSetPrize, adminDeletePrize, uploadMenuItemImage, esc, type MenuItem } from '../net/admin.ts';
 import { renderOrdersSection, renderExtOrdersSection, renderStaffSection, renderAuditSection, renderStatsBar } from './adminOrders.ts';
 
 import { listArtworks, deleteArtwork, artworkCardHtml } from '../net/artwork.ts';
@@ -535,7 +535,17 @@ function showMenuForm(item: MenuItem | null): void {
     <div style="border:1px dashed var(--line);border-radius:14px;padding:12px;margin-bottom:12px;background:#fcf9f4">
       <strong style="font-size:12px">${item ? 'تعديل منتج' : 'منتج جديد'}</strong>
       <div class="field" style="margin-top:8px"><label>اسم المنتج</label><input id="mName" value="${esc(item?.name ?? '')}" placeholder="قهوة عربية أصيلة"></div>
-      <div class="field" style="margin-top:8px"><label>رابط الصورة (https://…)</label><input id="mImage" dir="ltr" value="${esc(item?.imageUrl ?? '')}" placeholder="https://…"></div>
+      <div class="field" style="margin-top:8px">
+        <label>صورة المنتج</label>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div id="mImgPreview" style="width:64px;height:64px;border-radius:12px;overflow:hidden;background:#f3eee6;display:grid;place-items:center;flex:none;font-size:22px">${item?.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="" style="width:100%;height:100%;object-fit:cover">` : '☕'}</div>
+          <div style="flex:1;min-width:160px">
+            <input id="mImageFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" style="font:inherit;font-size:12px;width:100%">
+            <div class="admin-hint" style="margin:4px 0 0">اختر صورة من جهازك (حتى 3 م.ب) أو الصق رابطاً بالأسفل.</div>
+          </div>
+        </div>
+        <input id="mImage" dir="ltr" value="${esc(item?.imageUrl ?? '')}" placeholder="https://…" style="margin-top:8px;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:12px">
+      </div>
       <div class="field" style="margin-top:8px"><label>الوصف</label><input id="mDesc" value="${esc(item?.description ?? '')}" placeholder="وصف قصير"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
         <div class="field"><label>السعر (ر.س)</label><input id="mPrice" type="number" min="0" step="0.5" value="${item?.price ?? 0}"></div>
@@ -552,6 +562,36 @@ function showMenuForm(item: MenuItem | null): void {
     </div>`;
 
   $('#cancelM')?.addEventListener('click', () => (form.innerHTML = ''));
+
+  // رفع الصورة من الجهاز ومعاينتها فوراً
+  const fileInput = $<HTMLInputElement>('#mImageFile');
+  const preview = $<HTMLElement>('#mImgPreview');
+  const urlInput = $<HTMLInputElement>('#mImage');
+  fileInput?.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    // معاينة محلية فورية قبل الرفع
+    if (preview) {
+      const url = URL.createObjectURL(file);
+      preview.innerHTML = `<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover">`;
+    }
+    if (urlInput) urlInput.placeholder = 'جارٍ رفع الصورة…';
+    void uploadMenuItemImage(file)
+      .then((publicUrl) => {
+        if (urlInput) {
+          urlInput.value = publicUrl;
+          urlInput.placeholder = 'https://…';
+        }
+        if (preview) preview.innerHTML = `<img src="${esc(publicUrl)}" alt="" style="width:100%;height:100%;object-fit:cover">`;
+        toast('تم رفع الصورة');
+      })
+      .catch((error: unknown) => {
+        if (urlInput) urlInput.placeholder = 'https://…';
+        if (preview) preview.innerHTML = '☕';
+        notice('#adminNotice', error instanceof Error ? error.message : 'تعذّر رفع الصورة.');
+      });
+  });
+
   $('#saveM')?.addEventListener('click', async () => {
     const name = ($<HTMLInputElement>('#mName')?.value ?? '').trim();
     const imageUrl = ($<HTMLInputElement>('#mImage')?.value ?? '').trim();

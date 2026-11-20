@@ -22,3 +22,28 @@
 .admin-card{border:1px solid var(--line);background:#fffdfa;border-radius:14px;padding:12px;margin-bottom:12px}
 .admin-card h4{margin:0 0 8px;font-size:13px}
 .admin-hint{font-size:10px;color:var(--muted);margin:6px 0 0}
+/* ——— تحسينات المظهر الاحترافي (مسافات أوسع وتنسيق أنظف) ——— */
+.admin-stats{gap:10px;margin-bottom:16px}
+.admin-stats .stat{border-radius:16px;padding:14px 16px;gap:3px;box-shadow:0 1px 2px rgba(42,113,145,.05);background:linear-gradient(180deg,#fffdfa,#fbf6ee)}
+.admin-stats .stat b{font-size:22px;line-height:1.2;font-weight:700}
+.admin-stats .stat span{font-size:11px}
+.admin-toolbar{gap:10px;margin-bottom:16px}
+.admin-toolbar input{min-width:160px;padding:11px 14px;font-size:13px;transition:border-color .15s}
+.admin-toolbar input:focus{outline:none;border-color:#2a7191}
+.admin-toolbar select{padding:11px 14px;font-size:13px}
+.admin-row{border-radius:16px;padding:14px 16px;margin-bottom:10px;transition:box-shadow .15s}
+.admin-row:hover{box-shadow:0 2px 8px rgba(42,113,145,.07)}
+.admin-row-head{gap:10px}
+.admin-row-head strong{font-size:14px}
+.admin-row-meta{font-size:12px;margin-top:4px;line-height:1.9}
+.admin-row-actions{gap:8px;margin-top:10px}
+.admin-row-actions .btn{font-size:12px;padding:8px 12px}
+.chip{font-size:11px;padding:5px 11px}
+.order-items{gap:6px;margin-top:8px}
+.order-item{font-size:12px;border-radius:10px;padding:7px 11px}
+.admin-empty{font-size:12px;padding:20px 0}
+.admin-card{border-radius:16px;padding:16px 18px;margin-bottom:14px}
+.admin-card h4{font-size:15px;margin:0 0 10px}
+.admin-hint{font-size:11px;line-height:1.8;margin:8px 0 0}
+/* تبويبات اللوحة: صف متساوٍ وأنيق */
+#tabContent > div[style*="display:flex"]:has(#secOrders){gap:8px}

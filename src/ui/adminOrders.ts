@@ -11,12 +11,10 @@
 import { $, toast } from './dom.ts';
 import {
   adminStats,
-  addStaff,
   listAudit,
   listExternalOrders,
   listInternalOrders,
   listStaff,
-  removeStaff,
   setExternalStatus,
   setOrderStatus,
   type AdminStats,
@@ -307,84 +305,38 @@ export async function renderStaffSection(refresh: () => Promise<void>): Promise<
 
   body.innerHTML = `
     <div class="admin-card">
-      <h4>إضافة موظف</h4>
-      <div class="admin-toolbar">
-        <input id="staffEmail" type="email" placeholder="name@cafe.com" dir="ltr">
-        <button class="btn" id="staffAdd" type="button">إضافة</button>
-      </div>
-      <p class="admin-hint">يجب أن يكون الحساب مسجلا في Supabase (Authentication ← Users) بنفس البريد.</p>
+      <h4>الموظفون</h4>
+      <p class="admin-hint">لإضافة موظف أو تعديل صلاحيته، شغّل في Supabase ← SQL Editor:</p>
+      <code style="display:block;margin-top:6px;font-size:10px;color:var(--muted);direction:ltr;text-align:left;white-space:pre-wrap;background:#f7f1e8;border-radius:9px;padding:8px">insert into public.staff_members (user_id, role) select id, 'staff' from auth.users where lower(email)=lower('name@cafe.com');</code>
+      <p class="admin-hint">هذه القائمة للعرض فقط.</p>
     </div>
     <div id="staffList"><p class="admin-empty">جار التحميل…</p></div>
     <div class="notice" id="adminNotice"></div>`;
 
   const list = $<HTMLElement>('#staffList');
-  const email = $<HTMLInputElement>('#staffEmail');
-  const addBtn = $<HTMLButtonElement>('#staffAdd');
+  if (!list) return;
 
-  const load = async (): Promise<void> => {
-    if (!list) return;
-    let staff: StaffRow[] = [];
-    try {
-      staff = await listStaff();
-    } catch (error) {
-      list.innerHTML = `<p class="admin-empty">${esc(error instanceof Error ? error.message : 'تعذر تحميل الموظفين')}</p>`;
-      return;
-    }
-    list.innerHTML = staff.length
-      ? staff
-          .map(
-            (s) => `
+  let staff: StaffRow[] = [];
+  try {
+    staff = await listStaff();
+  } catch (error) {
+    list.innerHTML = `<p class="admin-empty">${esc(error instanceof Error ? error.message : 'تعذر تحميل الموظفين')}</p>`;
+    return;
+  }
+  list.innerHTML = staff.length
+    ? staff
+        .map(
+          (s) => `
         <div class="admin-row">
           <div class="admin-row-head">
             <strong>${esc(s.email ?? s.userId)}</strong>
             <span class="chip" style="color:${s.role === 'admin' ? '#2a7191' : '#8a684b'}">${s.role === 'admin' ? 'مدير' : 'موظف'}</span>
           </div>
-          <div class="admin-row-actions">
-            <button class="btn outline" data-staff-del="${esc(s.userId)}">إزالة</button>
-          </div>
         </div>`,
-          )
-          .join('')
-      : '<p class="admin-empty">لا يوجد موظفون.</p>';
+        )
+        .join('')
+    : '<p class="admin-empty">لا يوجد موظفون.</p>';
 
-    list.querySelectorAll<HTMLButtonElement>('[data-staff-del]').forEach((b) => {
-      b.addEventListener('click', () => {
-        const id = b.dataset.staffDel ?? '';
-        if (!id || !window.confirm('إزالة هذا الموظف من لوحة الإدارة')) return;
-        busy(b, true);
-        void removeStaff(id)
-          .then(() => {
-            toast('تمت إزالة الموظف');
-            return load();
-          })
-          .catch((error: unknown) => {
-            busy(b, false);
-            toast(error instanceof Error ? error.message : 'تعذر الحذف');
-          });
-      });
-    });
-  };
-
-  addBtn?.addEventListener('click', () => {
-    const value = email?.value.trim() ?? '';
-    if (!value) {
-      toast('أدخل بريد الموظف');
-      return;
-    }
-    busy(addBtn, true);
-    void addStaff(value)
-      .then(() => {
-        toast('تمت إضافة الموظف');
-        if (email) email.value = '';
-        return load();
-      })
-      .catch((error: unknown) => {
-        busy(addBtn, false);
-        toast(error instanceof Error ? error.message : 'تعذر الإضافة');
-      });
-  });
-
-  await load();
   void refresh;
 }
 
